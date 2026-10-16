@@ -1,0 +1,21 @@
+# New stage; do not pass this config to the M1 resume runner.
+# Earlier 2e-5 plan, not trained; excluded from the main matched-LR comparison.
+stage: sft_chosen
+experiment_id: M2_SFT_CHOSEN
+seed: 42
+expected_pairs: 1000
+learning_rate: 0.00002
+num_train_epochs: 1
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 8
+gradient_checkpointing: true
+max_length: 1536
+min_pixels: 200704
+max_pixels: 200704
+dtype: auto
+attn_implementation: sdpa
+disable_dropout: true
+checkpoint_selection: final_epoch
+logging_steps: 10
+save_steps: 25
+save_total_limit: null

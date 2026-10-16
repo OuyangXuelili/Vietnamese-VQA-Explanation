@@ -1,0 +1,6 @@
+# Verified validation export; override paths in a separate environment config.
+predictions: artifacts/colab_history/20261007/m1_full_validation/m1.jsonl
+manifest: artifacts/colab_history/20261007/m1_full_validation/m1.jsonl.manifest.json
+annotations: data/processed/vivqax/image_disjoint_v1/validation.jsonl
+selection: artifacts/preference_editor_m1_3683_2000_20261008/m1_selection.json
+examples: 12

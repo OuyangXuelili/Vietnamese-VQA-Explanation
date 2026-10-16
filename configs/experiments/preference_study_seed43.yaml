@@ -1,0 +1,32 @@
+protocol_id: vqa_nle_visual_preferences_v2
+declared_on: '2026-10-16'
+status: data_locked_training_pending
+seed: 43
+planned_seeds: [42, 43, 44]
+preferences:
+  data_locked: true
+  target_pairs: 1000
+  minimum_pairs: 1000
+  locked_pairs: 1000
+  require_visual_quality: true
+  required_review_version: 2
+  quality_review_sha256: 5f8ec683d70d8d802515c5fb518555b848be165157ddc718380a6bb447dc4fdd
+  source_split: train
+  candidate_bundle: artifacts/preference_v2/curation_20261015/merged
+  frozen_bundle: data/preferences/vivqax_m1_3683_v2/frozen_1000_reviewed_20261015
+training:
+  m2_config: configs/training/sft_chosen_seed43.yaml
+  m3_config: configs/training/dpo_seed43.yaml
+  epochs_per_branch: 3
+  effective_batch: 8
+  learning_rate: 0.00001
+  checkpoint_selection: final_epoch
+  dpo_gpu_hours_planning_limit: 8
+evaluation:
+  validation_count: 1407
+  test_count: 1968
+  human_test_images: 200
+  human_rubric_validation_images: 30
+  bootstrap_resamples: 2000
+  representative_seed: 42
+  diagnostic: validation_image_permutation

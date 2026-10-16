@@ -1,0 +1,13 @@
+# New M2/M3 runtime only. Never install over an active M1 session.
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.11.0+cu128
+torchvision==0.26.0+cu128
+transformers==4.57.6
+accelerate==1.14.0
+peft==0.20.0
+bitsandbytes==0.50.2
+Pillow==11.3.0
+numpy==2.2.6
+pyyaml==6.0.3
+filelock==3.19.1
+-e .

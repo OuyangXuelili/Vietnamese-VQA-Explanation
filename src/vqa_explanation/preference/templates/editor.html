@@ -1,0 +1,26 @@
+<section id="review-editor"><h2>Duyệt theo ảnh</h2>
+<style>{{stylesheet}}</style>
+<p>Kiểm ba điểm: đáp án đúng, giải thích có bằng chứng trong ảnh,
+và chosen tốt hơn rejected. Không loại chỉ vì khác câu tham chiếu.</p>
+<p>Trang tự lưu bản nháp trong trình duyệt. Bấm <strong>Xuất JSONL</strong> để lưu thành tệp.</p>
+<p id="queue-progress"></p>
+<select id="case-picker"></select> <button id="export-notes">Xuất JSONL</button>
+<button id="next-pending">Câu chưa chốt tiếp theo</button>
+<button id="next-draft" hidden>Đến bản nháp tiếp theo</button>
+<button id="next-ai-flagged" hidden>Đến cảnh báo AI tiếp theo</button>
+<label>Nhập nhãn đã lưu <input type="file" id="import-notes" accept=".jsonl"></label>
+<div id="review-context"></div>
+<button id="reveal-assistance" hidden>Mở hỗ trợ AI cho câu này</button>
+<aside id="ai-triage-panel" hidden><h3>AI triage — không phải nhãn người</h3>
+<p><strong id="ai-triage-verdict"></strong></p>
+<p id="ai-triage-rationale"></p>
+<p id="ai-triage-evidence" hidden></p></aside>
+<aside id="draft-panel" hidden><h3>AI đề xuất — chưa được người duyệt xác nhận</h3>
+<p id="draft-text" style="white-space:pre-wrap"></p>
+<button id="apply-draft">Điền đề xuất, giữ pending</button>
+<p>Không tự điền người duyệt, đánh giá đáp án hoặc bằng chứng xác nhận.
+Chỉ áp dụng khi câu chưa có ghi nhãn; không ghi đè phần bạn đã sửa.</p></aside>
+<div id="review-form"></div><p id="review-message" role="status"></p></section>
+<script type="application/json" id="review-data">{{payload}}</script><script type="application/json" id="draft-data">{{draft_payload}}</script><script type="application/json" id="queue-data">{{queue_payload}}</script><script type="application/json" id="advisory-data">{{advisory_payload}}</script>
+<script>
+{{javascript}}</script>

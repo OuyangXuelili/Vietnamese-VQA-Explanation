@@ -1,0 +1,20 @@
+# M1 full-data run. Check `sft-full-preflight` before allocating a GPU.
+stage: sft
+experiment_id: M1_SFT
+seed: 42
+expected_train_count: 29459
+expected_validation_count: 1407
+expected_test_count: 1968
+eval_sample_size: 256
+learning_rate: 0.00002
+num_train_epochs: 1
+max_steps: -1
+gradient_accumulation_steps: 8
+logging_steps: 10
+# Frequent checkpoints limit progress lost to runtime disconnects.
+eval_steps: 100
+save_steps: 100
+save_total_limit: 3
+min_pixels: 200704
+max_pixels: 200704
+max_length: 1536

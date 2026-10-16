@@ -1,0 +1,26 @@
+
+#review-editor {max-width:1100px;margin:0 auto;line-height:1.5}
+#review-editor [hidden] {display:none !important}
+#review-editor fieldset,#review-editor details {border:1px solid #d9e1ea;
+  border-radius:10px;padding:18px;margin:18px 0;background:#fff}
+#review-editor legend {font-weight:600;padding:0 8px}
+#review-editor .review-fields {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+#review-editor .review-fields label {display:flex;flex-direction:column;gap:6px;margin:0}
+#review-editor .review-fields .wide-field {grid-column:1 / -1}
+#review-editor input[type=text],#review-editor textarea,#review-editor select {
+  box-sizing:border-box;max-width:100%;font:inherit;border:1px solid #c7d2df;
+  border-radius:6px;padding:9px;background:#fff;color:#172b42}
+#review-editor .review-fields textarea {width:100%;min-height:88px;resize:vertical}
+#review-editor .review-fields input,#review-editor .review-fields select {width:100%}
+#review-editor summary {cursor:pointer;font-weight:600}
+#review-editor .section-hint {color:#52657a;margin:0 0 14px;font-size:.94em}
+#review-editor button {font:inherit;padding:8px 12px;margin:4px 4px 4px 0;
+  border:1px solid #bccbdc;border-radius:6px;cursor:pointer}
+#review-editor #case-picker {min-width:min(100%,320px)}
+#review-editor #review-context {margin-top:20px}
+#review-editor aside {border-left:3px solid #bdcce0;padding:4px 14px;margin:16px 0}
+#review-editor #review-message {overflow-wrap:anywhere}
+@media (max-width:700px) {
+  #review-editor .review-fields {grid-template-columns:1fr}
+  #review-editor fieldset,#review-editor details {padding:12px}
+}

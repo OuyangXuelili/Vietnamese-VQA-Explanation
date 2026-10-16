@@ -1,0 +1,4 @@
+# Copy outside Git and replace with the paths for this runtime.
+annotations: /content/drive/MyDrive/Vietnamese_VQA_NLE/datasets/processed/smoke_500.jsonl
+image_root: /content/vqa_work/coco
+run_root: /content/drive/MyDrive/Vietnamese_VQA_NLE/runs

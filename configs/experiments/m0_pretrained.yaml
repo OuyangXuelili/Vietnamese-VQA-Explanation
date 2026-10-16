@@ -1,0 +1,4 @@
+experiment_id: M0_PRETRAINED
+parent_checkpoint: null
+training_stage: none
+

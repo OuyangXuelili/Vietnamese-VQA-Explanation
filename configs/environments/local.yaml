@@ -1,0 +1,4 @@
+# Relative paths resolve from the repository root, never the shell working directory.
+annotations: data/processed/vivqax/smoke_500.jsonl
+image_root: data/raw/coco
+run_root: runs

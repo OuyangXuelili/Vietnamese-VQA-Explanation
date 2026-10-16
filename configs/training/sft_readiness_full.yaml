@@ -1,0 +1,6 @@
+# Full train token scan; call profile_sft_tokens.py directly with this config.
+seed: 42
+sample_size: 29459
+min_pixels: 200704
+max_pixels: 200704
+max_length: 1536

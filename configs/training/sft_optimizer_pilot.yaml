@@ -1,0 +1,20 @@
+# Same full-data trainer, but only 20 optimizer steps to measure throughput.
+# This is not the final M1 model or its validation result.
+stage: sft
+experiment_id: M1_SFT_PILOT
+seed: 42
+expected_train_count: 29459
+expected_validation_count: 1407
+expected_test_count: 1968
+eval_sample_size: 32
+learning_rate: 0.00002
+num_train_epochs: 1
+max_steps: 20
+gradient_accumulation_steps: 8
+logging_steps: 5
+eval_steps: 10
+save_steps: 10
+save_total_limit: 2
+min_pixels: 200704
+max_pixels: 200704
+max_length: 1536

@@ -1,0 +1,10 @@
+# Engineering check only; not the final M1 model.
+seed: 20260918
+limit: 32
+max_steps: 8
+grad_accum: 2
+learning_rate: 0.00002
+save_steps: 4
+min_pixels: 200704
+max_pixels: 200704
+max_length: 1536

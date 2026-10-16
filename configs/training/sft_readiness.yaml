@@ -1,0 +1,6 @@
+# CPU token-length pilot before allocating GPU for a one-batch QLoRA step.
+seed: 42
+sample_size: 512
+min_pixels: 200704
+max_pixels: 200704
+max_length: 1536

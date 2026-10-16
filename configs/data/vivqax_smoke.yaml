@@ -1,0 +1,15 @@
+dataset:
+  name: ViVQA-X-smoke-500
+  seed: 20260918
+  image_quotas:
+    train: 400
+    validation: 50
+    test: 50
+  annotation_file: data/processed/vivqax/smoke_500.jsonl
+  manifest_file: data/processed/vivqax/manifests/smoke_500.csv
+  image_archive: data/cache/coco_smoke_500.zip
+  runtime_image_root: data/raw/coco
+  expected_images: 500
+  expected_qa_pairs: 588
+  expected_explanations: 830
+  archive_sha256: 4e0fce747dee9a1beaf36e2617deae6582115020d7c219f315525e329a4024f9

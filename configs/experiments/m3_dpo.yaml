@@ -1,0 +1,6 @@
+# Study arm; paths and frozen inputs are supplied to train_preference.py.
+experiment_id: M3_DPO
+parent_checkpoint: M1_SFT
+reference_checkpoint: M1_SFT
+training_stage: dpo
+data_variant: preference_pairs

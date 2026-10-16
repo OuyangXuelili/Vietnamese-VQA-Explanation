@@ -1,0 +1,2 @@
+{"question_id":"sample-q1","image_id":"sample-img1","image_path":"data/sample/example.jpg","question":"Con vật nào xuất hiện trong ảnh?","answer":"Con mèo","explanations":["Ảnh cho thấy một con mèo đang ngồi."],"split":"train"}
+

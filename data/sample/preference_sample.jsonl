@@ -1,0 +1,2 @@
+{"pair_id":"sample-p1","source_question_id":"sample-q1","image_path":"data/sample/example.jpg","prompt":"Câu hỏi: Con vật nào xuất hiện trong ảnh?","chosen":"Đáp án: Con mèo\nGiải thích: Ảnh cho thấy một con mèo đang ngồi.","rejected":"Đáp án: Con mèo\nGiải thích: Ảnh cho thấy một con chó đang ngồi.","error_type":"object","generation_method":"manual_example","review_status":"accepted"}
+

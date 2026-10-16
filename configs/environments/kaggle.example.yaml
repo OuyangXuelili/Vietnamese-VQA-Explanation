@@ -1,0 +1,6 @@
+# Set these variables to the PRIVATE input dataset directories shown by Kaggle.
+# Inputs are read-only. /kaggle/working must be saved/exported before the session ends.
+annotations: ${VQA_ANNOTATIONS}
+image_root: ${VQA_IMAGE_ROOT}
+image_checksums: ${VQA_IMAGE_CHECKSUMS}
+run_root: /kaggle/working/vqa_runs

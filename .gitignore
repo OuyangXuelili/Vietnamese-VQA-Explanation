@@ -1,0 +1,37 @@
+.venv/
+*.egg-info/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+.env
+.idea/
+.vscode/
+
+# Local working notes
+/AGENTS.md
+/TIEN_DO.md
+
+# Large or generated artifacts
+data/raw/
+data/processed/
+data/cache/
+data/preferences/
+artifacts/*
+!artifacts/README.md
+checkpoints/
+runs/
+outputs/
+reports/generated/
+wandb/
+*.safetensors
+*.bin
+*.pt
+*.pth
+
+# Local notebooks and OS files
+.ipynb_checkpoints/
+notebooks/archive/*_with_outputs_*.ipynb
+.DS_Store
+Thumbs.db

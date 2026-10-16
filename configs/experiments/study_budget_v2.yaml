@@ -1,0 +1,70 @@
+# train_preference validates the training comparison; baseline records are historical.
+protocol_id: vqa_nle_matched_lr_v2
+amended_on: '2026-10-12'
+seed: 42
+baseline:
+  source_release: source_20260928_051956_295773
+  verified_candidate: runs/m1/sft-full_20261007_023531_870900/training/checkpoint-3683
+  verified_candidate_step: 3683
+  latest_verified_checkpoint: runs/m1/sft-full_20261007_023531_870900/training/checkpoint-3683
+  latest_verified_step: 3683
+  checkpoint_payload_proof: runs/m1/sft-full_20261007_023531_870900/execution.json
+  selection_pending: false
+  selection_record: artifacts/colab_history/20261007/m1_selection_frozen_v2/selection.json
+  maximum_step: 3683
+  continuation_from_step: 3683
+  planned_additional_updates: 0
+  additional_gpu_hours: 0
+  original_schedule_steps: 3683
+  save_and_validation_interval: 100
+  continuation_status: passed
+  recovery_run: runs/m1/sft-full_20261004_135823_877263
+  recovery_checkpoint: runs/m1/sft-full_20261004_065122_901248/training/checkpoint-1100
+  recovery_from_step: 1100
+  recovery_remaining_updates: 0
+  selection: validation_loss_including_final_checkpoint
+  full_epoch_required: true
+  epochs: 1
+  epoch_extension_status: passed
+  epoch_run: runs/m1/sft-full_20261007_023531_870900
+  epoch_input_run: runs/m1/sft-full_20261006_051955_205172
+  planned_epoch_resume_checkpoint: runs/m1/sft-full_20261006_051955_205172/training/checkpoint-2800
+  epoch_launcher_sha256: c9646355195f940e9cac5a6d63818f6df4c7da591085cea773bc01534ed8256d
+  final_checkpoint_validation: passed
+  final_checkpoint_validation_tool: scripts/evaluate_m1_epoch.py
+  full_validation_anchors: [1200, 3683]
+  selection_record_protocol: validation_loss_full_validation_v2
+  diagnostic_review_required: false
+  diagnostic_review_images: 100
+  diagnostic_review_status: pending_parallel
+preferences:
+  review_policy: ai_visual_review_v1
+  review_actor: ai
+  human_verified: false
+  pilot_finalization: data/preferences/pilot_ai_20261012/decision_record.json
+  review_continuation: data/preferences/review_complete_20261014/continuation.json
+  decision_record: data/preferences/vivqax_m1_3683_v1/decision_record.json
+  frozen_bundle: data/preferences/vivqax_m1_3683_v1/frozen
+  data_locked: true
+  locked_pairs: 186
+  locked_on: '2026-10-14'
+  question_pool_limit: 2000
+  original_planning_target: 1000
+  target_accepted_pairs: 186
+  first_pass_candidates_per_question: 1
+  maximum_generated_candidates: 4000
+  source_split: train
+training:
+  m2_config: configs/training/sft_chosen.yaml
+  m3_config: configs/training/dpo.yaml
+  epochs_per_branch: 1
+  effective_batch: 8
+  learning_rate: 0.000005
+  checkpoint_selection: final_epoch
+  dpo_gpu_hours_planning_limit: 8
+evaluation:
+  validation_count: 1407
+  test_count: 1968
+  human_test_images: 200
+  human_rubric_validation_images: 30
+  bootstrap_resamples: 2000

@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -e ".[dev,verification,demo]"
+      - run: python -c "import torch, torchvision, transformers, accelerate, peft, fastapi, httpx"
+      - run: ruff check .
+      - run: python -m pytest -m "not historical" --fail-on-skip
+    strategy:
+      matrix:
+        python: ["3.10", "3.11"]
+

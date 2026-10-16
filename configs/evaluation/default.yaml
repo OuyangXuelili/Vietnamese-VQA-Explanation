@@ -1,0 +1,25 @@
+answer:
+  metrics: [exact_match, token_f1]
+  unicode_normalization: NFC
+  lowercase: true
+
+explanation:
+  automatic_metrics: [rouge_l]
+  semantic_metric:
+    name: bertscore
+    required_for_final_m0_m3: true
+    model_id: google-bert/bert-base-multilingual-cased
+    model_revision: 3f076fdb1ab68d5b2880cb87a0886f315b8146f8
+    num_layers: 9
+    bert_score_version: 0.3.13
+    backend_reported_bert_score_version: 0.3.12
+    transformers_version: 4.57.6
+    idf: false
+    rescale_with_baseline: false
+    use_fast_tokenizer: false
+  human_sample_size: 200
+  rubric: [visual_grounding, answer_support, clarity]
+
+generation:
+  do_sample: false
+  max_new_tokens: 128

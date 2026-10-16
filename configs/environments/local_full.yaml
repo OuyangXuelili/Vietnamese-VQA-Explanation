@@ -1,0 +1,5 @@
+# Full image-disjoint data; local.yaml remains the 500-image smoke profile.
+annotations: data/processed/vivqax/image_disjoint_v1/all.jsonl
+image_root: data/raw/coco
+run_root: runs
+image_checksums: data/processed/vivqax/full_image_checksums.csv

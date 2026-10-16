@@ -1,0 +1,5 @@
+experiment_id: M1_SFT
+parent_checkpoint: pretrained
+training_stage: sft
+data_variant: vivqax_train
+

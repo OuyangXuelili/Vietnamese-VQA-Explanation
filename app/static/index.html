@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VQA · Hỏi đáp hình ảnh</title>
+  <link rel="stylesheet" href="assets/demo.css"><script src="assets/demo.js" defer></script>
+</head>
+<body>
+<main>
+  <header><a class="brand" href="./">VQA<span> / tiếng Việt</span></a>
+    <span class="badge" id="mode">Đang kết nối</span></header>
+  <section class="intro"><p class="eyebrow">ẢNH · CÂU HỎI · GIẢI THÍCH</p>
+    <h1>Nhìn ảnh.<br>Hiểu câu trả lời.</h1>
+    <p class="lede">Hỏi đáp hình ảnh tiếng Việt với lời giải thích dựa trên nội dung ảnh.</p>
+    <p class="notice" id="notice" role="status">Đang kiểm tra backend…</p></section>
+  <section class="workspace">
+    <div class="visual-panel">
+      <div class="section-head"><h2>01 / Hình ảnh</h2><span id="image-meta">Chưa có ảnh</span></div>
+      <div class="image-stage"><img id="preview" alt="Ảnh dùng cho câu hỏi" hidden>
+        <div id="placeholder"><span class="image-symbol">▧</span><p>Chọn một ảnh để bắt đầu</p></div></div>
+      <label class="file-label" id="upload-label" hidden>Chọn ảnh JPEG / PNG
+        <input id="upload" type="file" accept="image/jpeg,image/png"></label>
+      <div id="replay-controls" hidden><label for="examples">Ví dụ validation đã lưu</label>
+        <select id="examples" aria-label="Chọn ví dụ validation"></select>
+        <p class="small">12 ảnh khác nhau, lấy theo ID. Không phải bộ ví dụ chỉ chọn câu trả lời đúng.</p></div>
+    </div>
+    <div class="qa-panel">
+      <div class="section-head"><h2>02 / Câu hỏi</h2><span>M1 · SFT</span></div>
+      <label class="sr-only" for="question">Câu hỏi tiếng Việt</label>
+      <textarea id="question" maxlength="500" rows="3" placeholder="Bạn muốn hỏi điều gì về ảnh?" disabled></textarea>
+      <button id="ask" disabled>Hỏi về ảnh <span>↗</span></button>
+      <p id="error" role="alert" hidden></p>
+      <div class="result-head"><h2>03 / Kết quả</h2><span id="latency">Chưa có kết quả</span></div>
+      <section class="answer-card"><p class="eyebrow">ĐÁP ÁN</p><p id="answer">—</p></section>
+      <section class="explanation-card"><p class="eyebrow">GIẢI THÍCH</p>
+        <p id="explanation">Kết quả sẽ hiển thị ở đây.</p></section>
+      <p class="small" id="warning">Giải thích là đầu ra của mô hình, không phải bằng chứng kiểm chứng độc lập.</p>
+      <details><summary>Đầu ra gốc và thông tin mô hình</summary><pre id="raw"></pre>
+        <p id="identity" class="small"></p></details>
+    </div>
+  </section>
+  <footer><span>Nghiên cứu VQA có lời giải thích</span><span>Không lưu ảnh tải lên vào dự án.</span></footer>
+</main>
+</body></html>

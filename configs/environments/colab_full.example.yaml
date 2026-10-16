@@ -1,0 +1,6 @@
+# After verifying/extracting the complete bundle into /content/vqa_work.
+# Keep dataset reads on Colab's local disk; Drive stores persistent run outputs.
+annotations: /content/vqa_work/vivqax_image_disjoint_v1/metadata/all.jsonl
+image_root: /content/vqa_work/vivqax_image_disjoint_v1
+run_root: /content/drive/MyDrive/Vietnamese_VQA_NLE/runs
+image_checksums: /content/vqa_work/vivqax_image_disjoint_v1/metadata/full_image_checksums.csv
