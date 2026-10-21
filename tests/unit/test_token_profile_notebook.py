@@ -1,6 +1,10 @@
 import json
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.historical
+
 
 def test_token_profile_notebook_is_cpu_only_and_has_valid_cells():
     root = Path(__file__).resolve().parents[2]

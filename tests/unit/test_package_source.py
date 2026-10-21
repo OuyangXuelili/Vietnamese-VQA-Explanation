@@ -103,3 +103,40 @@ def test_executed_notebook_evidence_is_not_in_source_release(tmp_path):
     evidence.write_text('{"cells": []}', encoding="utf-8")
     selected = {path.relative_to(tmp_path).as_posix() for path in source_files(tmp_path)}
     assert evidence.relative_to(tmp_path).as_posix() not in selected
+
+
+def test_source_excludes_all_archived_notebooks_without_deleting_them(tmp_path):
+    _minimum_source(tmp_path)
+    archived = tmp_path / "notebooks/archive/02_sft_smoke.ipynb"
+    active = tmp_path / "notebooks/05_evaluate_preferences.ipynb"
+    archived.parent.mkdir(parents=True)
+    archived.write_text('{"cells": [{"outputs": ["history"]}]}')
+    active.write_text('{"cells": []}')
+    selected = {p.relative_to(tmp_path).as_posix() for p in source_files(tmp_path)}
+    assert "notebooks/archive/02_sft_smoke.ipynb" not in selected
+    assert "notebooks/05_evaluate_preferences.ipynb" in selected
+    assert "history" in archived.read_text()
+
+
+def test_source_notebook_allowlist_excludes_unexpected_smoke_outputs(tmp_path):
+    _minimum_source(tmp_path)
+    path = tmp_path / "notebooks/unexpected_smoke.ipynb"
+    path.parent.mkdir()
+    payload = '{"cells": [{"cell_type": "code", "outputs": ["history"]}]}'
+    path.write_text(payload)
+    selected = {p.relative_to(tmp_path).as_posix() for p in source_files(tmp_path)}
+    assert path.relative_to(tmp_path).as_posix() not in selected
+    assert path.read_text() == payload
+
+
+@pytest.mark.parametrize("evidence", [{"outputs": [{"text": "history"}]},
+                                     {"execution_count": 1}])
+def test_active_template_with_execution_evidence_cannot_be_packaged(tmp_path, evidence):
+    _minimum_source(tmp_path)
+    path = tmp_path / "notebooks/05_evaluate_preferences.ipynb"
+    path.parent.mkdir()
+    payload = json.dumps({"cells": [{"cell_type": "code", **evidence}]})
+    path.write_text(payload)
+    with pytest.raises(ValueError, match="execution evidence"):
+        source_files(tmp_path)
+    assert path.read_text() == payload

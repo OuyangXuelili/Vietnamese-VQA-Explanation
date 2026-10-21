@@ -86,3 +86,20 @@ def test_dependency_failure_is_not_reported_as_success(project, tmp_path):
 
     with pytest.raises(subprocess.CalledProcessError):
         cloud.prepare_environment(project, directory, runner=runner)
+
+
+def test_semantic_profile_uses_separate_requirements(project, tmp_path):
+    (project / "requirements-cloud-semantic.txt").write_text("-e .\n")
+    directory = tmp_path / "semantic_env"
+    create_fake_environment(directory)
+    calls = []
+    cloud.prepare_environment(project, directory, profile="semantic",
+                              runner=lambda command, **kwargs: calls.append(command))
+    assert str(project / "requirements-cloud-semantic.txt") in calls[0]
+
+
+def test_unknown_profile_does_not_touch_environment(project, tmp_path):
+    directory = tmp_path / "unknown_env"
+    with pytest.raises(ValueError, match="profile"):
+        cloud.prepare_environment(project, directory, profile="other")
+    assert not directory.exists()

@@ -16,7 +16,7 @@ Giữ M1-3683 và split ViVQA-X hiện có: 29.459 train, 1.407 validation,
 Bộ nghiên cứu chính dùng 1.000 cặp, có thể tận dụng cặp v1 sau khi kiểm lại.
 Không hạ tiêu chuẩn chất lượng để đạt số lượng.
 
-## 1. Kết thúc lượt nhỏ, không biến thành kết quả chính
+## 1. Lượt kiểm tra triển khai 186 cặp
 
 Lượt 186 cặp đã train M2/M3, mỗi nhánh một epoch / 24 update. Giữ nguyên
 record, tên run, checkpoint và notebook có output; không đổi nhãn lịch sử.
@@ -90,7 +90,7 @@ kiểm metadata không tự chứng minh mọi quyết định thị giác là �
 
 ## 3. Huấn luyện chính
 
-Cấu hình dự kiến ở `configs/experiments/preference_study_v2.yaml` và hai
+Cấu hình ở `configs/experiments/preference_study_v2.yaml` và hai
 config `sft_chosen_full.yaml`, `dpo_full.yaml`. Ngày 15/10 đã khóa N=1.000
 và hash review tại `frozen_1000_reviewed_20261015`. Cổng dữ liệu vẫn kiểm
 đúng bundle/review; mỗi nhánh phải qua kiểm GPU trước khi train chính.
@@ -99,14 +99,32 @@ Không thay config hoặc source của run 186 cặp đang dùng trên Colab.
 | Thiết lập | SFT chosen / DPO |
 |---|---|
 | Khởi đầu | Cùng M1-3683; reference DPO là M1 frozen |
-| Dữ liệu | Cùng ID, ảnh, đáp án, chosen và thứ tự shuffle theo seed |
+| Dữ liệu | Cùng ID, ảnh, đáp án, chosen và seed xáo trộn dữ liệu |
 | Epoch | 3 cho cả hai nhánh |
 | Learning rate | 1e-5 cho cả hai nhánh |
 | Seed | 42, 43, 44; tổng sáu run chính |
 | Batch hiệu dụng | 1 × tích lũy 8, một GPU |
 | DPO beta | 0,1 |
 | Ảnh / guard | 200.704 pixels, 1.536 token; không cắt ảnh/completion |
-| Checkpoint báo cáo | Cuối epoch 3; không chọn riêng checkpoint đẹp cho một nhánh |
+| Checkpoint báo cáo | Cuối epoch 3 cho cả hai nhánh |
+
+Seed là giá trị điều khiển tính ngẫu nhiên của lần huấn luyện. M2/M3 nạp
+lại adapter M1 đã học và tắt dropout; thay seed chủ yếu thay đổi thứ tự
+xáo trộn dữ liệu, không khởi tạo lại adapter. Ba seed 42, 43, 44 là ba lần
+lặp độc lập từ cùng M1. Các giá trị này không biểu thị chất lượng mô hình.
+Tổng hợp các lần chạy để kiểm tra mức dao động của kết quả M3–M2.
+Cùng seed không bảo đảm hai thuật toán có toàn bộ phép tính ngẫu nhiên giống nhau.
+
+Trạng thái 20/10: đã hoàn tất train, validation, BERTScore và CI của cả
+ba seed. BERTScore M2/M3: 76,55 ± 0,01 / 79,26 ± 0,54; chênh lệch
+M3−M2 +2,71 ± 0,54 điểm (trung bình ± độ lệch chuẩn mẫu). M3 vẫn thấp
+hơn M1; chưa thấy cải thiện đáp án hoặc bám ảnh. Bảng đã kiểm ở
+`reports/generated/preference_validation_three_seeds_20261020/`.
+Tiếp theo là đối chứng LR đã định dưới đây, không mở grid search mới.
+Ngày 21/10: hai report LR 5e-6 đều `passed`, 375 update / ba epoch;
+M3 hoàn tất ở attempt `m3_train_resume175`. Việc còn lại của đối chứng là
+kiểm độc lập đầy đủ checkpoint cuối M3 và validation. Chưa có căn cứ đổi
+thiết kế chính hoặc tuyên bố LR này tốt hơn.
 
 Đây là thiết kế đối chứng có ngân sách, chưa phải bộ siêu tham số tối ưu.
 Với N=1.000: 375 update/nhánh. Báo cả số mẫu duy nhất và số lượt đọc mẫu:
@@ -128,7 +146,7 @@ Không tăng epoch chỉ vì train loss giảm.
 ## 4. Đánh giá đúng câu hỏi nghiên cứu
 
 1. Xuất đủ 1.407 validation cho sáu run chính và M0/M1 trong môi trường
-   ghim. Báo chênh lệch M3–M2 cho từng seed; không chọn seed đẹp nhất.
+   ghim. Báo chênh lệch M3–M2 cho từng seed; không chọn riêng seed có điểm cao nhất.
 2. Trên 200 ảnh validation cố định, đổi ảnh theo hoán vị không điểm cố định
    cho M1/M2/M3 seed 42; giữ câu hỏi và generation. Báo thay đổi đáp án,
    EM so với đáp án của ảnh gốc và output. Đây là kiểm độ nhạy, không phải

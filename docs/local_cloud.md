@@ -20,9 +20,11 @@ Mẫu profile cloud có sẵn để điền vị trí dữ liệu trên máy đa
 | Hồ sơ tải về | `artifacts/colab_history/<ngày>/` |
 
 [Mục lục artifacts](../artifacts/README.md) chỉ rõ bản review hiện hành.
-`notebooks/04_train_preferences.ipynb` là notebook đang dùng; các notebook
-trong `archive/` giữ lịch sử M1. Notebook 04 chỉ gọi luồng M2/M3; không
-chứa code train M1, đánh giá cũ hoặc sinh lại ứng viên.
+`notebooks/04_train_preferences.ipynb` điều phối train M2/M3;
+`05_evaluate_preferences.ipynb` chỉ đánh giá validation. Hai template dùng
+launch record theo seed, không train lại M1. Notebook có output trong
+`archive/`, `artifacts/colab_history/`, `artifacts/preference_v2/` và Drive
+giữ nguyên. Không cập nhật template đè lên notebook đang chạy.
 
 ## Local
 
@@ -50,11 +52,12 @@ M1 dùng source/môi trường đã ghim trong run M1. M2/M3 dùng
 `/content` là ổ tạm; lưu checkpoint và log vào kho bền vững đã kiểm.
 Luồng M2/M3 ở [preference_training.md](preference_training.md).
 
-Notebook 04 đọc `source/preference_training_launch_v1.json` trên kho dự án.
-Record ghim release/hash, đường dẫn bộ cặp cuối và một nhóm run ổn định.
+Notebook 04 chọn launch record/hash và seed ở đầu; không đọc launch v1
+của lượt 186 cặp. Mỗi record ghi release/hash, đường dẫn bộ cặp và nhóm run.
 `scripts/bootstrap_cloud_source.py` khôi phục release trong thư mục mới;
 notebook kiểm hash công cụ trước khi gọi. Setup không tải model.
-Mặc định `MODE='inspect'`; `data_locked=false` chặn train ngay từ đầu.
+Mặc định tắt `RUN_GATE`, `RUN_TRAINING` và `RUN_EXPORT`; inspect phải thành
+công trước khi chạy. `data_locked=false` chặn bộ train chưa khóa.
 
 Kaggle có profile mẫu `kaggle.example.yaml`. Trước một run mới, kiểm GPU,
 bundle, dung lượng output và khả năng tải checkpoint ra kho bền vững.

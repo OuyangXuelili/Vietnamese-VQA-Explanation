@@ -43,11 +43,13 @@ GROUPS = {"both_match": "M2 và M3 cùng khớp", "gain": "M2 không khớp → 
 
 
 def analyze_study(predictions, annotations, *, semantic=None, prediction_hashes=None,
-                  seed=42, resamples=2000, per_group=8):
+                  seed=42, resamples=2000, per_group=8, training_seed=None):
     if set(predictions) != set(ARMS):
         raise ValueError("Require exactly M0, M1, M2 and M3 predictions")
     if type(per_group) is not int or per_group < 1:
         raise ValueError("Cases per group must be a positive integer")
+    if training_seed is not None and (type(training_seed) is not int or training_seed < 0):
+        raise ValueError("Training seed must be a nonnegative integer or unknown")
     canonical = {r["question_id"]: r for r in annotations}
     if (not canonical or len(canonical) != len(annotations)
             or any(r["split"] != "validation" for r in annotations)):
@@ -123,7 +125,8 @@ def analyze_study(predictions, annotations, *, semantic=None, prediction_hashes=
                 break
     return {
         "schema": "four_arm_validation_report_v1", "split": "validation", "n": len(ids),
-        "n_images": len(set(images)), "training_seed": seed,
+        "n_images": len(set(images)), "training_seed": training_seed,
+        "bootstrap_seed": seed, "bootstrap_resamples": resamples,
         "scores": {arm: {k: mean(v) for k, v in scores.items()}
                    for arm, scores in values.items()},
         "comparisons": comparisons, "bootstrap": bootstrap, "diagnostics": diagnostics,
@@ -201,12 +204,17 @@ def verify_evidence(folder, annotations, predictions, study_config, canonical_al
         if not path.is_relative_to(project_root()) or sha256_file(path) != digest:
             raise ValueError("Inference source differs from the local implementation")
     return {"manifests": manifests, "training": reports,
+            "training_seed": settings["m2"]["config"]["seed"],
             "checkpoint_files_verified_by": "completed export manifests and saved train reports; "
                                             "weights were checked before inference"}
 
 
 def render_study_markdown(report):
-    lines = ["# Validation M0–M3 — seed 42", "",
+    training_seed = report["training_seed"]
+    seed_label = str(training_seed) if training_seed is not None else "chưa xác minh"
+    bootstrap_seed = report.get("bootstrap_seed", report["case_selection"]["seed"])
+    resamples = report.get("bootstrap_resamples", 2000)
+    lines = [f"# Validation M0–M3 — seed {seed_label}", "",
              f"{report['n']:,} câu / {report['n_images']:,} ảnh. "
              "M2 và M3 cùng khởi đầu từ M1-3683, học 1.000 cặp trong ba epoch (375 update). "
              "Đây là kết quả validation của một seed, chưa phải kết quả test.", "",
@@ -223,7 +231,8 @@ def render_study_markdown(report):
         lines.append(f"| {METRICS[metric]} | {stat['delta_right_minus_left'] * 100:+.2f} "
                      f"| [{lo:+.2f}; {hi:+.2f}] |")
     lines += ["", "![Chênh lệch và CI](deltas.png)", "",
-              "CI dùng paired image-bootstrap 2.000 lần, seed 42; đo bất định tập ảnh, "
+              f"CI dùng paired image-bootstrap {resamples:,} lần, "
+              f"seed {bootstrap_seed}; đo bất định tập ảnh, "
               "không thay độ lệch chuẩn qua các seed train. Các CI là khoảng riêng từng "
               "chỉ số, không phải kiểm định đồng thời đã hiệu chỉnh nhiều phép so sánh.", "",
               "## Định dạng và độ dài", "",
@@ -243,8 +252,9 @@ def render_study_markdown(report):
               "Không khớp tham chiếu chưa chắc sai theo ảnh; bảng nhóm không phải nhãn chấm mù.",
               "", "## Giới hạn và bước tiếp", "",
               "ROUGE-L và BERTScore đo tương đồng văn bản, chưa chứng minh giải thích "
-              "được ảnh hỗ trợ. Cần đối chứng đổi ảnh, seed 43/44, test sau khóa thiết kế "
-              "và chấm mù theo rubric. Không chọn checkpoint hoặc seed đẹp nhất từ bảng này.",
+              "được ảnh hỗ trợ. Cần tổng hợp các seed, đối chứng đổi ảnh, test sau khóa "
+              "thiết kế và chấm mù theo rubric. Không chọn checkpoint hoặc seed theo điểm "
+              "thuận lợi nhất từ bảng này.",
               "", "Các input, hash, giao thức, hồ sơ train và sáu phép so sánh đầy đủ "
               "nằm trong `report.json`. Không sửa prediction hoặc output train khi lập báo cáo."]
     return "\n".join(lines) + "\n"
@@ -295,8 +305,11 @@ def save_study_figures(report, output):
         bars = ax.bar(x + (i - 1.5) * .2,
                       [report["scores"][arm][m] * 100 for m in names], .19, label=arm.upper())
         ax.bar_label(bars, fmt="%.2f", fontsize=8, rotation=90, padding=3)
+    training_seed = report["training_seed"]
+    seed_label = str(training_seed) if training_seed is not None else "unverified"
     ax.set(xticks=x, xticklabels=[METRICS[n] for n in names], ylim=(0, 105),
-           ylabel="Score × 100", title=f"Validation · {report['n']} questions · training seed 42")
+           ylabel="Score × 100",
+           title=f"Validation · {report['n']} questions · training seed {seed_label}")
     ax.legend(frameon=False, ncols=4)
     fig.savefig(output / "metrics.png", dpi=180)
     plt.close(fig)
@@ -359,7 +372,8 @@ def build_study_report(folder, annotations_path, image_root, output_dir, *, stud
     semantic = ({arm: json.loads(inputs[f"{arm}_semantic"].read_text("utf-8")) for arm in ARMS}
                 if semantic_dir else None)
     report = analyze_study(predictions, annotations, semantic=semantic,
-                           prediction_hashes={arm: hashes[arm] for arm in ARMS})
+                           prediction_hashes={arm: hashes[arm] for arm in ARMS},
+                           training_seed=evidence["training_seed"])
     if semantic_dir and any(report["semantic_protocol"].get(k) != v for k, v in {
         "model_id": DEFAULT_BERTSCORE_MODEL, "model_revision": DEFAULT_BERTSCORE_REVISION,
         "num_layers": DEFAULT_BERTSCORE_LAYERS, "idf": False, "rescale_with_baseline": False,

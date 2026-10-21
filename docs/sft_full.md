@@ -10,7 +10,7 @@ rất nhẹ so với checkpoint-3500 (`1.0595598220825195`). Theo quy tắc đã
 đặt trước, checkpoint-3683 được chọn. Đã đánh giá đủ 1.407 validation và
 đóng băng selection trong
 `artifacts/colab_history/20261007/m1_selection_frozen_v2/selection.json`.
-EM 70,93%, Token-F1 75,11%, ROUGE-L 44,29%, BERTScore 82,47%.
+EM 70,93; Token-F1 75,11; ROUGE-L 44,29; BERTScore 82,47, đều nhân 100.
 Đây là điểm validation tự động, chưa phải chấm mức hỗ trợ theo ảnh.
 Các phần pilot/resume bên dưới giữ để tái lập lịch sử, không phải danh sách
 cần chạy lại. Vị trí lưu bằng chứng được ghi cùng từng mốc.

@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.historical
+
 
 def _source_verifiers():
     root = Path(__file__).resolve().parents[2]

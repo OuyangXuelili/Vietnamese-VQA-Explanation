@@ -1,6 +1,6 @@
 # Hỏi đáp hình ảnh tiếng Việt có lời giải thích
 
-Cập nhật 16/10/2026. Thiết kế và các bước còn lại ở [kế hoạch](research_plan.md).
+Cập nhật 20/10/2026. Thiết kế và các bước còn lại ở [kế hoạch](research_plan.md).
 
 ## Bài toán
 
@@ -12,7 +12,7 @@ Hệ thống nhận ảnh và câu hỏi, sinh đáp án cùng lời giải thí
 đủ hỗ trợ đáp án. Đồ án đánh giá riêng độ chính xác đáp án và mức hỗ trợ của
 giải thích theo ảnh.
 
-Câu hỏi chính: từ cùng M1 và cùng chosen đã kiểm, DPO có cải thiện giải thích
+Câu hỏi chính: từ cùng M1 và cùng giải thích tốt hơn (chosen), DPO có cải thiện giải thích
 so với SFT bổ sung không? Phạm vi là ảnh tự nhiên và tiếng Việt; không xây
 backbone mới hoặc chuyển sang OCR/RAG. Kết quả đo chất lượng đầu ra, không
 chứng minh lời giải thích phản ánh phép tính nội bộ của mô hình.
@@ -46,28 +46,28 @@ revision `66285546d2b821cf421d4f5eb2576359d3770cd3`.
 |---|---|---|
 | M0 | Mô hình gốc, không train | Đủ validation |
 | M1 | SFT đáp án/giải thích trên toàn train | Một epoch; đã chọn checkpoint-3683 |
-| M2 | Từ M1, SFT chosen-only | Bộ 1.000 cặp: seed 42 xong 375 update, đủ validation |
-| M3 | Từ cùng M1, DPO chosen/rejected | Bộ 1.000 cặp: seed 42 xong 375 update, đủ validation |
+| M2 | Từ M1, SFT trên chosen | Cả ba seed train xong và đủ bảng validation |
+| M3 | Từ cùng M1, DPO trên chosen/rejected | Cả ba seed train xong và đủ bảng validation |
 
 SFT tính loss trên completion, mask phần prompt/ảnh. QLoRA giữ backbone
 4-bit, học adapter rank 16, alpha 32 trên q/k/v/o projections. DPO dùng
 reference M1 frozen, không dùng reward model hoặc rollout PPO.
 
-Lượt 186 cặp: M2/M3 cùng seed 42, N câu/ảnh/chosen, một epoch, batch hiệu dụng 8, dropout
-tắt; M2/M3 cùng LR 5e-6, M3 beta 0,1. DPO giữ ảnh ở cả policy/reference và
-kiểm hai completion trước train, không cắt input vượt 1.536 token.
-FP16 trên T4; BF16 khi GPU hỗ trợ native ở run mới. Lineage M1 giữ nguyên.
+Bộ chính đã khóa 1.000 cặp trên 1.000 ảnh train ngày 15/10. M2 học giải
+thích chosen; M3 học thêm sự đối lập với giải thích kém hơn (rejected).
+Cả hai dùng LR 1e-5, ba epoch / 375 update, batch hiệu dụng 8; M3 beta 0,1.
+DPO giữ ảnh ở cả policy và reference. Đầu vào vượt giới hạn 1.536 token
+bị từ chối, không cắt ảnh hoặc phần trả lời. T4 dùng FP16.
 
-N=186 đã khóa sau kiểm toàn pool và rút cặp yếu. Dự toán ban đầu là 1.000;
-không bù số bằng cặp mơ hồ. Một epoch tương ứng 24 update mỗi nhánh. Cùng epoch không có nghĩa cùng token/FLOPs. M2 matched-LR
-được chọn làm nhánh chính ngày 12/10 trước khi train; bản 2e-5 giữ làm lịch sử.
+Kế hoạch lặp M2/M3 với các seed 42, 43, 44 để đo mức dao động kết quả.
+Mỗi lượt bắt đầu độc lập từ cùng trọng số M1, không học tiếp lượt seed
+trước. Dropout được tắt; seed chủ yếu điều khiển thứ tự xáo trộn dữ liệu.
+Seed 42/43/44 đã train và đánh giá validation xong. Đây là hai phương pháp chạy
+lặp, không phải sáu mô hình có kiến trúc khác nhau.
 
-Lượt nhỏ giữ làm kiểm triển khai và tham khảo nội bộ, không phải kết quả
-chính của báo cáo cuối. Bộ chính đã khóa 1.000 cặp / 1.000 ảnh train ngày
-15/10, gồm 992 negative có kiểm soát và 8 output M1 nguyên văn. Đây không
-phải đánh giá bởi nhiều người độc lập. SFT/DPO cùng ba epoch, LR 1e-5;
-seed 42 đã xong, seed 43 đang chạy, seed 44 chưa chạy.
-[Kế hoạch thực hiện](research_plan.md).
+Lượt 186 cặp trước đó dùng một epoch / 24 update và LR 5e-6. Giữ các run
+và output để tra cứu, không ghép vào bảng kết quả chính của bộ 1.000 cặp.
+[Chi tiết huấn luyện](preference_training.md) và [kế hoạch](research_plan.md).
 
 ## Kết quả M0/M1
 
@@ -109,30 +109,74 @@ Bảng đầy đủ, CI và 32 ví dụ ở
 Đối chứng đổi ảnh seed 42 đã xong: EM M1 giảm 68 → 16,5; M2 giảm 69,5 →
 17,5; M3 giảm 69 → 17,5 trên 200 ảnh validation. Chưa thấy lợi thế M3 so
 với M2 về mức giảm EM. Phép đo này không thay chấm chất lượng giải thích
-theo ảnh. Seed 43 đang train; seed 44, test và chấm mù chưa hoàn tất.
+theo ảnh. Test và chấm mù chưa hoàn tất.
 
 Selection: `artifacts/colab_history/20261007/m1_selection_frozen_v2/selection.json`.
 Run cuối: `runs/m1/sft-full_20261007_023531_870900`.
 
+## Validation bản chính — seed 43
+
+Đã tải prediction/manifest và hồ sơ train từ Drive, kiểm checksum gói,
+đối chiếu canonical và tính lại độc lập đủ 1.407 câu / 1.383 ảnh mỗi nhánh.
+Không sinh lại dự đoán. BERTScore dùng cùng evaluator đã ghim cho cả bốn nhánh.
+
+| Nhánh | EM | Token-F1 | ROUGE-L | BERTScore F1 |
+|---|---:|---:|---:|---:|
+| M0 | 41,01 | 52,41 | 27,05 | 75,82 |
+| M1 | 70,93 | 75,11 | 44,29 | 82,47 |
+| M2 | 69,72 | 74,26 | 30,33 | 76,55 |
+| M3 | 69,58 | 73,95 | 35,43 | 79,37 |
+
+M3 − M2: EM −0,14 điểm, CI 95% [−1,85; +1,64]; ROUGE-L +5,11 điểm,
+CI [+4,33; +5,82]; BERTScore +2,82 điểm, CI [+2,59; +3,05].
+Kết quả chưa cho thấy cải thiện đáp án; mức tăng
+tương đồng văn bản không tự chứng minh giải thích bám ảnh hơn.
+Bảng, CI và các ví dụ cố định ở
+`reports/generated/preference_validation_seed43_semantic_20261017/` trong kho kết quả.
+
+## Tổng hợp validation ba seed
+
+Mỗi seed có đủ 1.407 câu / 1.383 ảnh; đã đối chiếu prediction, manifest,
+evaluator và hồ sơ train. Không chọn riêng seed có điểm cao nhất.
+Các điểm nhân 100; ± là độ lệch chuẩn mẫu giữa ba lần train, không phải CI.
+
+| Nhánh | EM | Token-F1 | ROUGE-L | BERTScore F1 |
+|---|---:|---:|---:|---:|
+| M1 cố định | 70,93 | 75,11 | 44,29 | 82,47 |
+| M2 | 69,56 ± 0,29 | 74,17 ± 0,29 | 30,26 ± 0,06 | 76,55 ± 0,01 |
+| M3 | 69,27 ± 0,47 | 73,75 ± 0,33 | 35,16 ± 1,45 | 79,26 ± 0,54 |
+| M3 − M2 | −0,28 ± 0,19 | −0,42 ± 0,10 | +4,90 ± 1,44 | +2,71 ± 0,54 |
+
+M3 tăng tương đồng văn bản so với M2 ở cả ba seed, nhưng không vượt M1.
+Seed 44 riêng: BERTScore M2/M3 76,54 / 78,67; chênh lệch +2,13,
+CI bootstrap theo ảnh [+1,90; +2,36]. Không suy kết quả này thành cải thiện
+đáp án hoặc giải thích bám ảnh. Bảng từng seed giữ CI riêng, không lấy
+trung bình các khoảng tin cậy.
+
+Kết quả ở `reports/generated/preference_validation_seed44_20261020/` và
+`reports/generated/preference_validation_three_seeds_20261020/`.
+Bước tiếp theo là đối chứng LR 5e-6 cho cả hai nhánh theo kế hoạch, sau đó
+khóa thiết kế trước khi mở test và chấm mù.
+
 ## Dữ liệu cặp và đánh giá còn lại
 
-M1-3683 sinh 2.000 ứng viên train-only, một câu/ảnh của pool seed 42. EM
-70,15% trên pool là thống kê ứng viên, không phải tỷ lệ cặp hợp lệ.
-Pilot 100 ảnh giữ nguyên: 12 giữ, 47 loại, 41 chưa chắc. Đã xử lý hết pool:
-xem 1.966 ảnh, tách 34 câu theo phạm vi; không còn pending. Rà lại 201 cặp
-ban đầu và rút 15 cặp yếu khỏi train. Bộ cuối có 186 cặp trên 186 ảnh,
-gồm 78 rejected M1 nguyên văn và 108 negative có kiểm soát. Tập nhỏ,
-được chọn lọc và thiên về lỗi object/attribute; phải báo giới hạn này.
-Các nhãn này do cùng một trợ lý AI kiểm thị giác, không phải nhãn người
-hoặc chấm mù. Nguồn actor và văn bản vẫn giữ trong metadata.
+Bộ chính có 992 rejected tổng hợp có kiểm soát và 8 rejected là output
+M1 nguyên văn; toàn bộ chosen là văn bản tổng hợp. Các cặp đã được kiểm
+ảnh có trợ giúp mô hình, chưa được người gán nhãn độc lập thẩm định.
+Nguồn tạo và quyết định duyệt giữ trong metadata.
+
+Lượt 186 cặp lịch sử được xây từ 2.000 ứng viên M1, gồm 78 rejected M1
+nguyên văn và 108 negative có kiểm soát. Quy trình và kết quả lượt đó
+giữ trong [hướng dẫn huấn luyện](preference_training.md); không thay thế
+bộ chính hoặc kết quả chấm mù cuối.
 
 Cặp hợp lệ giữ cùng đáp án đúng, chosen có bằng chứng liên quan và rejected
 có vấn đề xác định được theo ảnh. Ghi riêng lỗi mâu thuẫn, chi tiết không
 được hỗ trợ và thiếu liên quan. Nháp AI giữ nguồn AI, không gán tên người;
 xác nhận nguyên văn cũng không đổi tác giả. [Rubric và xuất dữ liệu](preference_annotation.md).
 
-Với bộ mới, sau khi freeze cùng bộ cặp: kiểm mỗi trainer trên GPU, train M2/M3, khóa
-cấu hình và xuất đầy đủ validation/test. Chấm mù mẫu đã chọn trước gồm
+Việc tiếp theo là đối chứng LR đã định, rồi khóa cấu hình trước khi xuất
+test. Chấm mù mẫu đã chọn trước gồm
 200 ảnh test, một câu/ảnh cho bốn nhánh. Chỉ số chính là hỗ trợ 0–2 M3–M2
 với paired image-bootstrap, 2.000 lần/seed 42. Chỉ số phụ gồm đúng đáp án
 kèm hỗ trợ 2, chi tiết không được ảnh hỗ trợ và uncertain.
@@ -147,10 +191,11 @@ Trang duyệt cặp không phải demo. Source dùng lại ở `src`; notebook 0
 
 Đóng góp dự kiến: bộ cặp tiếng Việt có truy vết, đối chứng chosen-SFT/DPO và
 phân tích lỗi theo ảnh. Qwen/LoRA/DPO là phương pháp kế thừa.
-Giới hạn hiện có: lượt nhỏ một seed train, annotation dịch, cỡ mẫu chấm hữu hạn, pretraining
-overlap chưa biết, chi phí tính khác nhau dù cùng LR/epoch. DPO không vượt SFT vẫn là kết
-quả cần báo cáo. Thời gian còn lại chốt từ pilot và số đo GPU, không từ số
-file hoặc loss giảm.
+Giới hạn hiện có: cả ba seed cùng bắt đầu từ một M1, bộ cặp tổng hợp chưa có thẩm định
+độc lập, annotation dịch và chưa biết mức trùng với dữ liệu pretraining.
+Cùng LR/epoch không đồng nghĩa cùng chi phí tính toán. Báo cả kết quả DPO
+thấp hơn SFT và chưa kết luận về chất lượng giải thích theo ảnh khi thiếu
+đánh giá của người.
 
 ## Nguồn
 

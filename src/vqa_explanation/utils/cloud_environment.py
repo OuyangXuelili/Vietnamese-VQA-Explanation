@@ -13,7 +13,9 @@ def environment_python(directory):
     return Path(directory) / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 
 
-def prepare_environment(project_dir, environment_dir, *, runner=run_command):
+def prepare_environment(project_dir, environment_dir, *, profile="preference", runner=run_command):
+    if profile not in {"preference", "semantic"}:
+        raise ValueError("Unknown cloud environment profile")
     project_dir = Path(project_dir).resolve()
     environment_dir = Path(environment_dir)
     if environment_dir.is_symlink():
@@ -21,7 +23,7 @@ def prepare_environment(project_dir, environment_dir, *, runner=run_command):
     environment_dir = environment_dir.resolve()
     if project_dir.is_relative_to(environment_dir):
         raise ValueError("Environment cannot replace the source directory or its ancestors")
-    requirements = project_dir / "requirements-cloud-preference.txt"
+    requirements = project_dir / f"requirements-cloud-{profile}.txt"
     if not requirements.is_file():
         raise FileNotFoundError(requirements)
     python = environment_python(environment_dir)

@@ -1,6 +1,10 @@
 import json
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.historical
+
 
 def test_batch_pilot_notebook_has_gpu_guard_and_no_full_train():
     root = Path(__file__).resolve().parents[2]

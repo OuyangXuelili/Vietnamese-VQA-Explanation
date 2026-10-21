@@ -7,6 +7,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.historical
+
 
 def test_paired_notebook_compiles_and_preserves_scope():
     root = Path(__file__).resolve().parents[2]

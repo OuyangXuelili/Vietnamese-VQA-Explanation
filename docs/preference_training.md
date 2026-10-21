@@ -1,296 +1,188 @@
-# Huấn luyện M2/M3
+# Huấn luyện và đánh giá M2/M3
 
-Lượt 186 cặp dưới đây đã chạy, được giữ nguyên để kiểm và tham khảo nội bộ.
-Nghiên cứu chính mới dùng [kế hoạch](research_plan.md),
-`configs/experiments/preference_study_v2.yaml` và hai config `*_full.yaml`.
-Bộ duyệt lại `frozen_1000_reviewed_20261015` đã khóa 1.000 cặp; snapshot
-trước đó chỉ giữ làm lịch sử. Mỗi nhánh vẫn phải qua kiểm GPU trước train.
-Negative gồm 992 cặp có kiểm soát và 8 output M1 nguyên văn; baseline chỉ
-đọc chữ đạt 62,55%, nên không bỏ bước kiểm đổi ảnh và chấm theo ảnh.
-Trainer đọc số epoch từ config, số update là `ceil(N/8) × epochs`.
-Không dùng launcher v1 cho run mới. Launcher mới kiểm config và review
-trước khi nạp model. Validation chính cần `--study-config` trỏ vào study v2;
-bỏ tùy chọn này chỉ để đọc lượt 186 cặp lịch sử.
+Bộ chính đã khóa 1.000 cặp. M2 học chosen bằng SFT; M3 học chosen/rejected
+bằng DPO. Cả hai bắt đầu từ M1-3683, cùng seed, learning rate 1e-5,
+batch hiệu dụng 8 và ba epoch / 375 update. DPO dùng beta 0,1 và reference
+M1 frozen. Thiết kế đầy đủ ở [kế hoạch](research_plan.md).
 
-Lượt chính dùng launch `source/preference_training_launch_v2_20261015.json`.
-Setup trong mục 1.000 cặp của notebook 04 khôi phục ZIP bằng
-`scripts/restore_preference_bundle.py`, kiểm hash và không ghi đè bộ cũ.
-Chạy setup → preflight → M2 gate/train → M3 gate/train, không chạy toàn bộ
-notebook hoặc nối tiếp từ adapter 186 cặp. Gate GPU chưa chạy thì chưa train.
+Seed 42 và 43 đã train xong, có validation/BERTScore/CI kiểm độc lập.
+Seed 44 đã hoàn tất hai nhánh và xuất đủ validation ngày 19/10. Ngày 20/10
+đã tính BERTScore seed 44 và tổng hợp đủ ba seed. Không chạy lại một lượt
+đã hoàn tất chỉ để xem output.
+Ngày 21/10, report đối chứng LR 5e-6 của hai nhánh đều `passed`, 375 update;
+M3 dùng attempt `m3_train_resume175`. Còn kiểm độc lập đầy đủ checkpoint cuối
+M3 và chạy validation đối chứng, chưa có kết quả chất lượng của LR này.
 
-## Kiểm bộ cặp và độ nhạy ảnh
+## Notebook và code
 
-Kiểm độ khó mà không sửa bundle cũ:
+| Tệp | Công việc |
+|---|---|
+| `notebooks/04_train_preferences.ipynb` | Setup → inspect → M2 gate/train → M3 gate/train → đọc report |
+| `notebooks/05_evaluate_preferences.ipynb` | Setup đánh giá độc lập → inspect → xuất/nối tiếp validation → kiểm file kết quả |
+| `scripts/launch_preference_training.py` | Chuyển launch record thành tham số stage |
+| `src/vqa_explanation/training/preference.py` | Trainer SFT chosen và DPO |
+| `src/vqa_explanation/training/preference_data.py` | Kiểm dữ liệu, study, completion và collator |
+| `scripts/run_study_validation.py` | Xuất và kiểm prediction M0–M3 |
 
-```powershell
-python scripts/audit_preference_quality.py --pairs <FROZEN>/accepted.jsonl --output-dir <AUDIT_NEW>
-```
+Notebook mới là template cho lượt sau, không thay bản Colab đã có output.
+Mỗi seed dùng launch record/config riêng, không cần tạo notebook riêng.
+M1 vẫn ở [notebook có output](https://colab.research.google.com/drive/13Abjl7kJyDKzbxyYsCetJ540OzdK2P_E)
+và các snapshot trong `notebooks/archive/`, `artifacts/colab_history/`,
+`artifacts/preference_v2/`. Không xóa hoặc đổi tên các bản này.
 
-Lệnh tạo baseline chỉ đọc văn bản và review chất lượng pending, không tạo
-nhãn đã xác nhận. Khi có review thật, thêm `--quality-review <REVIEW_JSONL>`.
-Study chính khóa hash review; thiếu trường/khác nội dung cặp bị từ chối.
-Review v2 yêu cầu nhận xét riêng từng cặp về độ liên quan của chi tiết sai
-và khả năng chọn chỉ bằng chữ. Không kế thừa các cờ xác nhận chung cho cả
-lô. Chạy `review_preference_images.py sheet` với ứng viên và manifest M1
-để chuẩn bị đầu vào có nguồn; sheet cũ không dùng để nhập nhãn mới.
-Các kiểm tra này chỉ xác minh hồ sơ, không tự chấm được nội dung ảnh.
+## Một lượt train
 
-Pool tiếp theo dùng `select_preference_questions.py --exclude-selection
-<POOL_CU>`; lặp tùy chọn để loại toàn bộ ảnh các pool trước. Bản đã chọn:
-`data/preferences/question_pool_v2/batch01`, 2.000 câu/ảnh train mới.
-Pool câu hỏi chưa phải cặp preference. Luồng hiện hành ưu tiên ứng viên M1
-cũ; chỉ sinh thêm cho những ảnh chưa có ứng viên:
+1. Chọn `LAUNCH_RECORD`, SHA-256 và `EXPECTED_SEED` đã khai trước train.
+   Giữ `RUN_GATE=False`, `RUN_TRAINING=False` trong lúc setup/inspect.
+2. Mount kho dự án một lần. Đặt `PROJECT_DIR` khi không tìm được duy nhất
+   một kho chứa selection M1; không phụ thuộc email hoặc ID Drive cố định.
+3. Khôi phục đúng source release và venv riêng. Bundle preference/ảnh được
+   kiểm checksum; ảnh đọc từ ổ cục bộ của Colab, checkpoint/log lưu trên Drive.
+4. Inspect cả M2/M3. Thiếu ảnh, review, selection hoặc config khác study
+   sẽ dừng trước khi nạp model. Inspect không chứng minh GPU đã chạy đúng.
+5. Bật `RUN_GATE` rồi chạy riêng ô gate của nhánh cần kiểm. Gate năm update
+   dùng output riêng, kiểm policy/reference/trọng số lưu. Không lặp gate
+   nếu source, dữ liệu, config và runtime không đổi và gate hợp lệ đã có.
+6. Bật `RUN_TRAINING` rồi chạy ô train tương ứng. Train chính nạp M1 sạch,
+   không học tiếp adapter gate. Hoàn tất M2 rồi làm M3.
+7. Đọc `training_result.json`, Trainer state, checkpoint và log. Chỉ nghiệm
+   thu khi đủ 375 update / epoch 3 và các kiểm trọng số/reference đã qua.
 
-```text
-python scripts/expand_preferences.py run --annotations <ALL_JSONL> --image-root <IMAGE_ROOT> --old-pairs <V1_FROZEN>/accepted.jsonl --candidates <SAVED_M1_CANDIDATES> --selection <NEW_POOL> --m1-adapter <M1_3683> --m1-selection <M1_SELECTION> --output-dir <NEW_RUN> --target 1000
-```
+Template không tự bật train/export khi bấm Run all. Khi đã bật các cờ,
+chỉ chạy ô cần thiết; không Run all qua những gate/run đã tồn tại.
 
-Lệnh cần GPU; local chỉ kiểm source/dữ liệu. `--inspect` kiểm đầu vào mà
-không nạp model. Chạy lại cùng lệnh để nối tiếp, không đổi thư mục output,
-source hoặc đầu vào giữa chừng. `decisions.jsonl` giữ cả kết quả loại;
-`results.html` chỉ hiển thị ảnh và cặp được giữ, không ghi tên người duyệt.
-Bundle đủ số vẫn chưa tự khóa config train; cần kiểm audit chất lượng.
-Luồng mới thử sửa một cụm sai trong output M1 trước và giữ rejected nguyên
-văn nếu qua kiểm. Khi không có lỗi M1 dùng được, mới tạo đối lập có kiểm
-soát. Output sai đáp án/định dạng không được đổi nhãn thành negative M1.
-Các bản viết lại giữ nguồn synthetic. Source mới không resume vào journal
-expansion cũ; journal cũ vẫn giữ để đối chiếu.
+Môi trường dùng `requirements-cloud-preference.txt` và
+`scripts/setup_preference_environment.py`; không cài chồng thư viện train
+vào kernel Colab hoặc thay môi trường M1. Process con dùng đúng interpreter,
+bỏ Python path/home kế thừa và tắt user-site. Log được chuyển tiếp ra notebook.
 
-Phép đổi ảnh dùng CLI riêng, không sửa annotation canonical:
+### Nối tiếp sau mất phiên
 
-```powershell
-python scripts/check_image_dependence.py prepare --environment configs/environments/local_full.yaml --bundle artifacts/image_dependence/validation_200_seed42
-python scripts/check_image_dependence.py run --environment <GPU_ENV> --bundle <BUNDLE> --output-dir <RUN_NEW> --experiment-id M1_SFT --adapter <M1_ADAPTER>
-```
+Giữ nguyên record, config, dữ liệu và tổng ngân sách. Chạy lại setup/inspect,
+điền checkpoint đã kiểm vào `RESUME` và đặt `ATTEMPT` mới, ví dụ
+`m3: resume150`. Output mới là `m3_train_resume150`; run/gate cũ không đổi.
 
-Bundle đã cố định 200 ảnh validation; copy nguyên bundle sang cloud, không
-prepare lại sau khi xem output. `run` xuất đúng ảnh và ảnh hoán vị, kiểm
-identity rồi ghi score. Chạy cùng lệnh để resume; `score` chỉ đọc prediction
-đã đủ. Chỉ số so với đáp án ảnh gốc là diagnostic, không phải kết quả VQA
-chuẩn trên ảnh hoán vị. Seed 42 đã hoàn tất phép đo này trên T4;
-chưa thấy lợi thế M3 so với M2.
+Launcher kiểm hash adapter, optimizer, scheduler, RNG, scaler FP16,
+runtime/dtype/GPU và ngân sách trước khi resume. Không sửa `num_train_epochs`
+để bù thời gian mất kết nối hoặc dùng checkpoint thiếu file.
 
-M1-3683 đã được chọn và có đủ prediction validation. Bộ v1 đã khóa
-186 cặp / 186 ảnh, gồm 78 rejected M1 nguyên văn và 108 negative có kiểm soát.
-Đầu vào ở `data/preferences/vivqax_m1_3683_v1/frozen`. Dữ liệu duyệt bằng AI giữ actor rõ trong metadata, không ghi
-thành nhãn người. Cách duyệt/export ở
-[preference_annotation.md](preference_annotation.md).
+## Validation
 
-Run 14/10 đã hoàn tất: M2/M3 mỗi nhánh 24 update, epoch 1,0 trên T4.
-Hai gate được giữ riêng, run chính nạp M1 sạch. Adapter đã kiểm byte sau lưu;
-reference M3 không đổi. Báo cáo train nằm trong
-`reports/generated/preference_training_20261014/` của kho kết quả, ngoài Git.
-M2 đã có đủ validation; M3 chưa được xác nhận hoàn tất. Chưa có test.
+Notebook 05 không cần chạy notebook 04 trước. Nó mount cùng kho, đọc launch
+đánh giá và kiểm hash launch train, seed, run group, source đánh giá.
+Mặc định `RUN_EXPORT=False`; chỉ bật sau khi inspect thành công.
+Không dùng test để chọn checkpoint hoặc điều chỉnh thiết kế.
 
-## Validation sau train
-
-Lượt 1.000 cặp dùng cùng CLI, thêm study đã khóa:
+Seed 43 chọn M2 `m2_train`, M3 `m3_train_resume150`. Hai attempt được khai
+rõ trong record; không tìm thư mục mới nhất hoặc chép đè run M3 ban đầu.
+CLI tương đương:
 
 ```text
-python scripts/run_study_validation.py --environment configs/environments/colab_full.example.yaml --study-config configs/experiments/preference_study_v2.yaml --run-group <RUN_1000_SEED42> --m1-adapter <M1_3683> --output-dir <VALIDATION_NEW> --inspect
+python scripts/run_study_validation.py --environment <GPU_ENV> --study-config configs/experiments/preference_study_seed43.yaml --run-group <RUN_SEED43> --m1-adapter <M1_3683> --m3-stage m3_train_resume150 --output-dir <VALIDATION_SEED43> --inspect
 ```
 
-Chỉ bỏ `--inspect` sau khi cả M2/M3 đủ ba epoch. CLI đối chiếu config,
-review hash, canonical, source trainer, kế hoạch và Trainer state; chọn
-checkpoint-375 cho cả hai nhánh. Nếu một nhánh chưa xong thì dừng, không
-dùng checkpoint của lượt 186 cặp. Bốn nhánh được suy luận trong cùng môi
-trường; test vẫn đóng. Bảng đa seed chỉ có sau khi đủ các seed đã chốt.
+Bỏ `--inspect` để xuất/nối tiếp cùng thư mục. CLI đối chiếu ID, manifest,
+adapter, source và môi trường rồi bỏ qua các câu đã hoàn tất. Không ghép
+prediction từ hai môi trường hoặc chép baseline chỉ theo tên file.
+Một record validation mới phải ghim đúng source và các đầu vào trước khi chạy.
 
-Nếu mất phiên ở lượt chính: mount Drive rồi chạy ba cell trong mục
-`Validation — 1,000-pair study` theo thứ tự. Setup tự đọc launch đã ghim,
-khôi phục riêng môi trường đánh giá và ảnh nếu VM mới. Không cần chạy setup
-train, gate hoặc cell train. CLI kiểm manifest/ID trước khi nối tiếp, bỏ qua
-nhánh đã đủ 1.407 câu và không ghi lại các câu đã lưu. Nếu môi trường hoặc
-adapter khác bản gốc, dừng kiểm tra thay vì ghép hai lượt suy luận.
+### Dùng lại baseline M0/M1
 
-Nếu file chính bị mất dòng do Drive chưa đồng bộ nhưng còn recovery snapshot,
-dùng `scripts/recover_validation.py` với cùng environment/study/run/M1, thêm
-`--source-dir <VALIDATION_OLD> --output-dir <VALIDATION_RECOVERED> --inspect`.
-Script kiểm receipt, hash, manifest và các prefix; chỉ chọn bản dài nhất
-không mâu thuẫn. Bỏ `--inspect` để sao chép sang thư mục mới, giữ nguyên
-bản gốc. Sau đó chạy CLI validation với output-dir mới. Không nối thẳng
-vào snapshot, sửa ID, cắt file lỗi hoặc bỏ cổng kiểm môi trường.
+Notebook 05 chuyển `baseline_source` và `baseline_sha256` trong record cho CLI.
+Hash phải ghim đúng bốn file: `m0.jsonl`, `m0.jsonl.manifest.json`,
+`m1.jsonl`, `m1.jsonl.manifest.json`. Có thể truyền trực tiếp bằng
+`--baseline-source <BASELINE_DIR> --baseline-sha256 '<JSON_HASH_MAP>'`.
+Hai cờ phải đi cùng nhau; không kết hợp với `--relocate-from` vì phép đó
+áp dụng cho toàn bộ study, gồm cả M2/M3.
 
-Phần dưới mô tả cell/launcher của lượt 186 cặp lịch sử:
+Inspect kiểm đủ 1.407 câu, ID/reference, hash ảnh/annotation, M1, model revision,
+source suy luận, Python/thư viện, prompt và generation đã ghi trong manifest.
+Nguồn phải là hai baseline đầy đủ có cùng giao thức. Đổi địa chỉ adapter M1
+được chấp nhận khi hash trọng số/config giữ nguyên; nội dung prediction giữ
+nguyên, chỉ metadata đường dẫn được chuyển và ghi nhận rõ.
 
-Ba cell cuối notebook gọi `scripts/run_study_validation.py`: setup source,
-kiểm đầu vào, xuất dự đoán. CLI kiểm plan và hash checkpoint M1/M2/M3;
-xuất đủ 1.407 câu cho M2 → M3 → M0 → M1 cùng môi trường và generation config.
-M0/M1 được suy luận lại, không train lại. Bảng baseline cũ vẫn giữ riêng.
-Các file JSONL có manifest và khóa ghi; mất phiên thì gọi lại cùng CLI để
-nối tiếp. Không bấm cell train hoặc chạy tất cả để tiếp tục validation.
+Khi chạy thật, chỉ sao chép M0/M1 đã kiểm; không nạp hai model baseline.
+M2/M3 vẫn xuất/nối tiếp từ hai attempt đang chọn của lượt mới. Biên nhận
+`baseline_reuse.json` giữ hash nguồn/đích và số câu. File đích đã khớp được
+giữ nguyên khi nối phiên; file khác hoặc nguồn đổi sau inspect làm tác vụ dừng.
+Không tự sinh lại baseline khi kiểm thất bại hoặc dùng M2/M3 cũ cho LR mới.
 
-Nếu mất VM, chạy cell 1 → 2 → 3 để mount kho, khôi phục môi trường và ảnh;
-chờ từng cell hoàn tất. Sau đó chạy cell 8 → 9 → 10 trong mục validation.
-Không chạy lại cell 4–6. Output cũ không chứng minh kernel mới đã có biến;
-kiểm execution count và log mới trước khi chuyển cell. CLI resume kiểm
-JSONL/manifest đã lưu và bỏ qua ID hoàn tất, không train lại các adapter.
+Source cũ chưa có hai cờ này. Lượt đánh giá mới phải tạo record mới ghim
+release đã kiểm; không chỉnh record hoặc source release lịch sử để thêm tính năng.
+Template 05 để trống `VALIDATION_RECORD`/`VALIDATION_SHA256` để chọn lượt mới,
+giữ `RUN_EXPORT=False` tới khi inspect đạt.
 
-Nếu kho được mount qua shortcut làm đường dẫn adapter khác, dùng
-`--relocate-from <RUN_CU>` với một `--output-dir` mới. CLI chỉ cho phép
-đổi địa chỉ adapter sau khi hash trọng số, dữ liệu, source suy luận và
-runtime khớp; kiểm từng prediction rồi tạo bản sao có biên bản chuyển kho.
-Run gốc không đổi. Record launch có thể khai `relocate_from`; các lần
-resume sau kiểm biên bản đã tạo rồi tiếp tục cùng thư mục mới.
+Nếu file chính mất dòng nhưng còn recovery snapshot, dùng
+`scripts/recover_validation.py` với cùng study, run, M1 và `--m3-stage`,
+thêm `--source-dir`, `--output-dir` mới và `--inspect`.
+Công cụ kiểm hash/prefix trước khi sao chép, giữ nguyên bản lỗi.
+Nếu chỉ đổi địa chỉ kho, `--relocate-from` của CLI validation cũng yêu cầu
+output mới và đối chiếu identity; không bỏ kiểm để tiếp tục.
 
-Trong lượt xuất mới, CLI lưu thêm bản sao đóng tệp ở `recovery/` sau câu
-25 và mỗi 100 câu. Mỗi bản có JSONL, manifest và checksum; không phải
-checkpoint train. Chỉ tính số câu thực đọc được trong file, không suy số
-đã lưu từ dòng tiến độ trên trình duyệt. Khi Drive mất file đang mở,
-giữ nguyên bản lỗi và kiểm snapshot trước khi khôi phục.
+## Bảng số liệu và các phép đo riêng
 
-Kết quả nằm ở `evaluation_runs/m0_m3_validation_20261014`. Chỉ sau khi đủ
-bốn file mới so M2/M3, M1/M2, M1/M3 và M0/M1, kèm CI paired image-bootstrap.
-EM/F1/ROUGE-L chưa thay phần chấm bám ảnh bởi người; BERTScore làm sau khi
-đối chiếu đủ prediction. Không mở test để chọn cấu hình.
+`scripts/report_study_validation.py` đọc output đã đủ; thêm `--semantic-dir`
+khi có report BERTScore. Công cụ kiểm canonical, ID/reference, manifest và
+evidence train trước khi lập bảng. Đếm dòng trong notebook chỉ để theo dõi,
+không thay các kiểm này. BERTScore dùng môi trường semantic riêng.
 
-## Chuẩn bị đầu vào
+Notebook 05 có hai tác vụ: `validation` sinh/nối prediction; `semantic`
+chấm prediction đã lưu. Với semantic, chọn `ANALYSIS_RELEASE` và checksum
+của source phân tích đã kiểm. Không sửa record source suy luận lịch sử.
+Các ô vẫn chạy theo thứ tự setup → inspect → chạy → kết quả; không cần
+khôi phục ảnh, adapter Qwen hoặc chạy notebook 04 trước.
 
-- `accepted.jsonl`, `chosen_only.jsonl`, `manifest.json` từ cùng bộ đã freeze.
-- Adapter M1-3683 và selection record đã ghim model/revision và hash.
-- Sáu evidence của selection: kết quả epoch, Trainer state, loss selection,
-  prediction validation, manifest prediction và annotation validation.
-- Profile environment trỏ tới ảnh/annotation đầy đủ và nơi lưu run.
-
-Đường dẫn evidence được tính từ selection record. Bản tải ở
-`artifacts/colab_history/20261007/m1_selection_frozen_v2` giữ layout Drive gốc;
-cần khôi phục đủ layout/evidence trước khi dùng làm đầu vào trainer trên máy khác.
-Demo replay có YAML trỏ trực tiếp ba evidence cần dùng.
-
-Chốt `expected_pairs=N` cho các config sẽ chạy. Hai nhánh dùng cùng ID,
-ảnh, đáp án và chosen. Sau preflight CPU, mỗi trainer chạy gate GPU tối đa
-10 update, rồi run chính nạp lại M1 sạch.
-
-`scripts/finalize_preference_review.py` bàn giao bản duyệt bằng một lệnh:
-audit/báo cáo trước, export/freeze chỉ khi có `--freeze` và N chính xác.
-Đọc `handoff.md`, kiểm manifest và dùng thư mục `frozen` làm preferences.
-Lệnh không cập nhật config, chọn N hoặc chạy GPU thay người thực hiện.
-
-## Trainer và môi trường mới
-
-Logic ở `training/preference.py`, input/collator ở `training/preference_data.py`.
-CLI `scripts/train_preference.py` đọc config và chạy trainer.
-
-Phần train của `04_train_preferences.ipynb` có 7 cell: kho lưu, source,
-preflight, M2, M3, kết quả và mô tả ngắn. Mục validation thêm 4 cell,
-tổng 11 cell; output train giữ nguyên. `scripts/launch_preference_training.py` chuyển
-record khởi chạy thành tham số CLI trên; không chứa loss hoặc trainer mới.
-Hai cell M2/M3 gọi cùng helper, tránh chép lại phần dựng lệnh.
-
-Record `source/preference_training_launch_v1.json` giữ đường dẫn môi trường,
-preferences, M1/selection, hai config và `run_group`. Bộ cuối đã đặt
-`data_locked=true`, `expected_pairs=186`; hai config khớp N. Record dành
-cho Drive trỏ `preference_local/vivqax_m1_3683_v1/frozen`. Local vẫn dùng đường dẫn
-repo và profile local riêng, không mount Drive.
-Launcher đối chiếu checksum của decision record rồi đối chiếu manifest
-frozen với quyết định đó trước khi tải model. Thay bộ cặp dù cùng N cũng
-bị từ chối. Record cũ không có hai trường pin giữ các kiểm metadata/gate cũ;
-record chính hiện hành có đầy đủ hai trường.
-Runtime mới khôi phục bundle ảnh vào ổ `/content` bằng verifier hiện có;
-record ghim đường dẫn/hash bundle. Ảnh của bộ cặp tiếp tục được đối chiếu
-trong preflight. Không đọc hàng nghìn JPEG trực tiếp từ Drive.
-
-Trong notebook: `MODE='inspect'` chỉ kiểm metadata; `'gate'` chạy 5 update;
-`'train'` cần kết quả gate cùng nhánh. Run group không đổi khi chạy lại
-cell cấu hình, nên bước train đọc đúng gate đã lưu. Chọn nhóm run mới khi
-đổi source/dữ liệu, không ghi đè output cũ. Resume truyền checkpoint qua
-`RESUME`, đặt `ATTEMPT` của nhánh đó thành tên mới (ví dụ `resume25`).
-Output mới nằm cùng nhóm run; gate gốc vẫn được dùng. Không lặp setup M1.
-
-M2 chính dùng `configs/training/sft_chosen.yaml`; M3 dùng
-`configs/training/dpo.yaml`, cùng LR 5e-6. Bản M2 2e-5 giữ làm thiết kế cũ,
-chưa train. Protocol sửa ngày 12/10 trước run để tránh nhiễu do khác LR.
-CLI mặc định đọc `study_budget_v2.yaml`, kiểm hai nhánh và lưu hash trong
-run. Bản cũ bị từ chối nếu khai là nhánh chính. Nếu thay thiết kế, cần file
-study mới qua `--study-config`, không đổi protocol sau khi thấy test.
-
-Kiểm cấu hình, không cần GPU/dữ liệu:
-
-```powershell
-python scripts/train_preference.py --config configs/training/sft_chosen.yaml --check-comparison
+```text
+python scripts/setup_cloud_environment.py --profile semantic --environment-dir <SEMANTIC_ENV>
+<SEMANTIC_PYTHON> scripts/run_study_semantic.py --results <VALIDATION_DIR> --annotations <VALIDATION_JSONL> --output-dir <SEMANTIC_DIR> --inspect
 ```
 
-Hai config đã chốt `expected_pairs=186`; CLI từ chối nếu khác N của study.
-Lệnh chạy M2 dùng config matched-LR, M3 dùng dpo; cả hai cần gate riêng.
+Bỏ `--inspect` để chấm. Mặc định dùng CUDA, batch 16; đây là đánh giá văn bản,
+không phải train trên CPU. CLI kiểm đủ 1.407 câu mỗi nhánh, tham chiếu,
+manifest và giao thức trước khi nạp BERT. Kết quả lưu riêng từng nhánh;
+khi nối phiên, chỉ tính nhánh thiếu, không ghi đè report đã có. Thiếu hoặc
+đổi đầu vào/giao thức thì dừng, không tự bỏ qua lỗi. `completed.json` chỉ
+được tạo sau khi cả bốn report đã qua kiểm.
 
-- M2 nạp **trọng số adapter M1**, không khởi tạo LoRA ngẫu nhiên mới.
-- M3 nạp hai bản adapter M1 trên cùng backbone 4-bit: policy trainable,
-  reference frozen. Reference không phải model gốc tắt adapter.
-- Cả hai tắt dropout, cùng chosen và thứ tự dữ liệu, seed 42, một epoch,
-  batch 1 × tích lũy 8. Với 186 cặp: 24 optimizer update mỗi nhánh.
-- DPO sigmoid dùng tổng log-prob của completion, mask prompt/ảnh; dùng ảnh ở
-  chosen, rejected và reference. Không có reward model, rollout RL hoặc cache ref.
-- Giới hạn token là cổng từ chối, không cắt chuỗi. Quét collator thật một lần
-  trước train. DPO có `max_length=null`, guard cả hai phía ở 1536 token.
-- Dtype ở config train có hiệu lực: auto = FP16 trên T4, BF16 chỉ khi native.
-  Dtype legacy trong model YAML không điều khiển hai stage mới.
+Sau khi lập đủ report từng seed kèm BERTScore:
 
-Trong **runtime GPU mới**, cell 2 tạo môi trường riêng bằng
-`scripts/setup_preference_environment.py`. Môi trường ở `/content/vqa_envs/<release>`;
-không lấy thư viện hệ thống của Colab. CLI kiểm ảnh, M2/M3 đều dùng Python
-của môi trường này. Kernel chỉ mount Drive và điều phối. Log subprocess được
-chuyển tiếp ra notebook, kể cả lỗi cài đặt. Process con bỏ Python path/home
-kế thừa và không nạp user-site để giữ môi trường riêng. Ghi phiên bản và GPU trong run.
-Cài `requirements-cloud-preference.txt`, chạy `pip check` trong môi trường đó.
-File này ghim các thư viện chính; không phải
-lock toàn bộ phụ thuộc bắc cầu hoặc bằng chứng đã chạy GPU. CUDA wheel/runtime
-còn phải xác nhận trong cổng GPU. Torch/Torchvision ghim bản `+cu128`;
-đã kiểm wheel Python 3.13/Linux trong [index PyTorch chính thức](https://download.pytorch.org/whl/cu128/torch/).
-Không thay môi trường M1.
-
-Pip điều khiển venv không có pip qua `--python`, theo
-[tài liệu pip](https://pip.pypa.io/en/stable/topics/python-option/).
-Không bỏ qua dependency check vì các gói cài sẵn của Colab bị lệch phiên bản.
-
-Ví dụ sau khi có bundle và selection thật, tại repo:
-
-```powershell
-python scripts/train_preference.py --config configs/training/dpo.yaml --environment configs/environments/local_full.yaml --preferences <FROZEN_BUNDLE> --m1-adapter <M1_ADAPTER> --m1-selection <SELECTION_JSON> --preflight-only
+```text
+python scripts/report_validation_seeds.py --seed42 <REPORT42_JSON> --seed43 <REPORT43_JSON> --seed44 <REPORT44_JSON> --output-dir <NEW_SUMMARY_DIR>
 ```
 
-Lệnh này chỉ kiểm metadata và ảnh; không tải model, không train. Trên cloud
-dùng profile environment cloud riêng. Nếu thiếu accepted/selection, dừng;
-không thay bằng sample JSONL để qua cổng.
+Công cụ đọc lại manifest, prediction, semantic report và hồ sơ train; tính
+lại điểm trước khi tổng hợp. M0/M1 là baseline cố định. M2/M3 và chênh lệch
+M3−M2 báo mean ± sample SD qua ba seed. CI bootstrap theo ảnh của từng seed
+giữ riêng; không lấy trung bình CI hoặc coi ba baseline lặp là ba run mới.
 
-Exporter lưu `original_candidate_origin` cho mọi cặp, kể cả bản người sửa hoặc
-synthetic. Trước train, model ID và fingerprint adapter của nguồn này phải khớp
-M1 được chọn. Nguồn `model` ở chosen/rejected cũng phải khớp. Bundle cũ thiếu
-trường này cần export lại từ đúng candidate manifest; không tự điền hash M1.
+Đối chứng đổi ảnh dùng `scripts/check_image_dependence.py`. Giữ bundle
+200 ảnh validation đã cố định, không prepare lại sau khi xem kết quả.
+Dùng đúng adapter cuối của các nhánh và thư mục output riêng. Đây là phép
+đo độ nhạy ảnh, không phải điểm VQA trên bộ ảnh hoán vị.
 
-Mỗi trainer mới chạy một GPU gate tối đa 10 update (`--pilot-steps 5`, output
-mới), kiểm loss, policy update, reference giữ nguyên và byte weights đã lưu.
-Run chính bỏ pilot-steps, thêm `--gpu-gate <GATE_RUN/training_result.json>`.
-Khởi lại từ M1 sạch, không dùng adapter gate. Hash source/data/config/M1,
-runtime và dtype phải khớp. DPO dự toán vượt 8 giờ thì xem lại ngân sách chung.
+ROUGE-L/BERTScore đo tương đồng văn bản, chưa chứng minh giải thích được ảnh
+hỗ trợ. Cần đủ ba seed, test sau khóa thiết kế và chấm mù thật theo
+[hướng dẫn đánh giá](human_evaluation.md).
 
-Run mới ghi data_plan, execution, Trainer log/state, checkpoint mỗi 25 update
-và ở đích cuối, adapter policy và training_result. Giữ các checkpoint đã lưu.
-Mỗi checkpoint có `resume_manifest.json` ghi hash adapter, optimizer, scheduler,
-RNG, scaler FP16 và các file khác. Marker chỉ ghi sau khi Trainer lưu xong.
+## Đối chứng learning rate
 
-Khi Colab mất VM, dùng `--resume-from-checkpoint <CHECKPOINT>` và một
-`--output-dir` mới. Nguồn, dữ liệu, M1, config, phiên bản thư viện, dtype,
-loại GPU và ngân sách phải khớp. Checkpoint mất file hoặc khác hash bị từ chối
-trước tải model. Trainer khôi phục trạng thái và bỏ qua dữ liệu đã học; reference
-được nạp lại từ M1 cố định, policy nạp từ checkpoint. Resume không tăng epoch.
+`preference_study_lr5e6.yaml` khai báo một đối chứng seed 42, cùng bộ 1.000
+cặp, M1 và ba epoch. Hai config `sft_chosen_lr5e6.yaml`, `dpo_lr5e6.yaml`
+chỉ đổi LR từ 1e-5 xuống 5e-6. Đây là bảng độ nhạy riêng, không thay sáu
+run chính hoặc tăng số seed của nghiên cứu chính.
 
-`--stop-after-step <N>` dừng chủ động và lưu ở N, giữ lịch LR/đích gốc;
-trạng thái là `paused`, chưa phải kết quả chính. Chỉ nối checkpoint nhỏ hơn
-đích gốc. Gate GPU bị dừng chủ động chưa được coi là gate passed.
-Các ô train M1 cũ không dùng CLI này. Run cuối ghi số update của phiên hiện
-tại riêng với global step; đọc loss theo `log_history` khi đã resume vì
-`Trainer.train_loss` không phải trung bình đầy đủ của các phiên trước.
-CPU tests và toy training không xác nhận Qwen 3B/QLoRA chạy vừa T4.
+Launch ghim hồ sơ seed 42 gốc. Kiểm trước train từ chối nếu đổi M1, dữ liệu,
+ngân sách, beta, giới hạn token hoặc dùng lại run group cũ. Trainer và
+collator giữ nguyên; gate phải chạy riêng vì cấu hình LR đã đổi.
+Giữ notebook 04 có output lịch sử; bản thực thi đối chứng dùng cùng template
+16 ô, không chèn controller hoặc phần đánh giá vào notebook lịch sử.
 
-## Cơ sở thiết lập
+## Các lượt lịch sử
 
-[NLX-GPT](https://github.com/fawazsammani/nlxgpt) tách dữ liệu, train và đánh giá
-VQA-NLE. Repo này dùng cùng nguyên tắc, không lấy architecture hay kết quả của họ.
-[TRL 0.29.0 DPO source](https://github.com/huggingface/trl/blob/v0.29.0/trl/trainer/dpo_trainer.py)
-là đối chiếu cho completion masking và loss; không dùng nguyên trainer vì có
-cast QLoRA trainable sang BF16. Bản 0.28 được kiểm chưa chuyển `image_grid_thw`
-trong đường forward DPO. Vì vậy dùng Transformers Trainer và loss chuẩn DPO
-riêng, giữ lại collator Qwen đã kiểm. Đây là lựa chọn triển khai, không phải thuật toán mới.
+Lượt 186 cặp ngày 14/10: mỗi nhánh một epoch / 24 update, LR 5e-6.
+Giữ config `sft_chosen.yaml`, `dpo.yaml`, launch v1, checkpoint và output
+nguyên vẹn; không dùng cho run mới hoặc đổi nhãn thành kết quả chính.
 
-M2/M3 đã train xong; chưa tạo nhãn người. Trạng thái đồng bộ đọc từ TIEN_DO.
-Công cụ chấm test theo [hướng dẫn](human_evaluation.md); demo còn cần hoàn thiện.
+Xử lý cặp đã chuyển sang CLI `expand_preferences.py`,
+`finalize_preference_review.py` và [quy trình dữ liệu](preference_annotation.md).
+Không nối các ô mở rộng dữ liệu vào notebook train đã hoàn tất.

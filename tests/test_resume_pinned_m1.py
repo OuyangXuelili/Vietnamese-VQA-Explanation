@@ -582,6 +582,7 @@ def test_duplicate_followup_is_read_only(tmp_path):
     verify_no_followup((tmp_path / "old/training/checkpoint-900").resolve(), output)
 
 
+@pytest.mark.historical
 def test_notebook_pins_launcher_and_stop():
     root = Path(__file__).resolve().parents[1]
     notebook = json.loads(
@@ -605,6 +606,7 @@ def test_notebook_pins_launcher_and_stop():
     compile(cell, "resume_cell", "exec")
 
 
+@pytest.mark.historical
 def test_resume_cell_does_not_create_training_without_gpu(notebook_checkpoint_1100):
     root = Path(__file__).resolve().parents[1]
     notebook = json.loads((root / M1_NOTEBOOK).read_text("utf-8"))
@@ -638,6 +640,7 @@ def test_resume_cell_does_not_create_training_without_gpu(notebook_checkpoint_11
     assert sorted((project / "runs/m1").iterdir()) == original_runs
 
 
+@pytest.mark.historical
 def test_resume_cell_preserves_input_checkpoint(notebook_checkpoint_1100):
     root = Path(__file__).resolve().parents[1]
     notebook = json.loads((root / M1_NOTEBOOK).read_text("utf-8"))
@@ -694,6 +697,7 @@ def test_resume_cell_preserves_input_checkpoint(notebook_checkpoint_1100):
 @pytest.mark.parametrize("fault", [None, "failed_run", "paused", "wrong_stage", "wrong_step",
                                   "wrong_schedule", "tampered_launcher", "no_gpu",
                                   "resume_guard", "trainer_error"])
+@pytest.mark.historical
 def test_epoch_cell_checks_saved_checkpoint_and_recovery_guard_before_training(tmp_path, fault):
     root = Path(__file__).resolve().parents[1]
     notebook = json.loads(
@@ -772,6 +776,7 @@ def test_epoch_cell_checks_saved_checkpoint_and_recovery_guard_before_training(t
 
 
 @pytest.mark.parametrize("missing", [None, "token_full_M1_v1.json", "m1_environment_v1.json"])
+@pytest.mark.historical
 def test_saved_preflight_is_reused_without_rescanning(tmp_path, missing):
     root = Path(__file__).resolve().parents[1]
     notebook = json.loads(

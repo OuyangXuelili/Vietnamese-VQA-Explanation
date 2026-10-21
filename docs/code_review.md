@@ -44,7 +44,8 @@ cần kiểm hành vi; tìm chuỗi trong source chỉ dùng để kiểm cấu 
 - Script là lệnh: `train_`, `evaluate_`, `prepare_`, `export_`, `package_`.
   `launch_preference_training.py` đọc record; `train_preference.py` chạy trainer.
 - Notebook dùng `<stage>_<task>.ipynb`. M1 có output giữ trong `archive/`;
-  `04_train_preferences.ipynb` dành cho M2/M3.
+  `04_train_preferences.ipynb` dành cho train M2/M3,
+  `05_evaluate_preferences.ipynb` dành cho validation.
 - Config đang dùng có tên ổn định. Thiết kế cũ đưa vào `configs/archive/`.
   Ngày/phiên bản dùng cho snapshot, run và protocol cần truy vết.
 - Tên test theo phần được kiểm: `test_m1_notebook_history.py` kiểm lịch sử

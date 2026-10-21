@@ -27,6 +27,8 @@ ROOT_FILES = (
 )
 SOURCE_FOLDERS = ("src", "scripts", "configs", "tests", "docs", "notebooks", "app")
 SOURCE_SUFFIXES = {".py", ".yaml", ".yml", ".md", ".ipynb", ".txt", ".html", ".css", ".js"}
+SOURCE_NOTEBOOKS = {"notebooks/04_train_preferences.ipynb",
+                    "notebooks/05_evaluate_preferences.ipynb"}
 SAMPLE_FILES = ("data/sample/vivqax_sample.jsonl", "data/sample/preference_sample.jsonl")
 REQUIRED_FILES = {
     "pyproject.toml",
@@ -70,8 +72,13 @@ def source_files(root: Path) -> list[Path]:
         for path in (root / folder).rglob("*"):
             if not path.is_file() or path.suffix not in SOURCE_SUFFIXES:
                 continue
-            if path.suffix == ".ipynb" and "_with_outputs_" in path.stem:
-                continue
+            if path.suffix == ".ipynb":
+                if path.relative_to(root).as_posix() not in SOURCE_NOTEBOOKS:
+                    continue
+                notebook = json.loads(path.read_text(encoding="utf-8"))
+                if any(cell.get("outputs") or cell.get("execution_count") is not None
+                       for cell in notebook["cells"] if cell["cell_type"] == "code"):
+                    raise ValueError(f"Source notebook contains execution evidence: {path.name}")
             relative = path.relative_to(root)
             if any(part.startswith(".") or part == "__pycache__" or part.endswith(".egg-info")
                    for part in relative.parts):

@@ -7,6 +7,11 @@ SHA-256: `8651cdfd737a07b5cfd401d595a45cda16adb9ba241864a9546b3f860a3330df`.
 Chưa có prediction test hoặc nhãn chấm thật. Chỉ chọn ID từ annotation, không
 chọn theo chất lượng đầu ra. Giữ nguyên mẫu sau khi đóng băng.
 
+Seed 42 ở bước này dùng để chọn mẫu đánh giá, không phải một lần train.
+Bốn bộ output để chấm dùng M0/M1 và M2/M3 có seed huấn luyện 42 đã định
+trước. Seed của phép bootstrap cũng là 42 nhưng chỉ điều khiển lấy mẫu
+tính khoảng tin cậy, không tạo thêm lần huấn luyện.
+
 ## Chuẩn bị sau khi có kết quả bốn nhánh
 
 CLI ở `scripts/blind_review.py`; logic ở `evaluation/blind_review.py`.
@@ -59,7 +64,7 @@ Các tỷ lệ trong JSON nằm trong [0, 1]; nhân 100 khi trình bày chênh l
 điểm phần trăm. `yes` giảm nhưng `uncertain` tăng không đủ để kết luận model
 bớt tạo chi tiết không được ảnh hỗ trợ. Khoảng tin cậy là từng chỉ số riêng,
 không phải kiểm định nhiều giả thuyết đã hiệu chỉnh. Không chọn chỉ số phụ
-có kết quả đẹp nhất làm kết luận chính sau khi chấm.
+có kết quả thuận lợi nhất làm kết luận chính sau khi chấm.
 
 Kappa thường dùng cho đáp án/chi tiết không được ảnh hỗ trợ; kappa trọng số
 bình phương dùng cho hỗ trợ 0/1/2. Kappa null khi nhãn suy biến làm mẫu số bằng

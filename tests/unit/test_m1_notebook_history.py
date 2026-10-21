@@ -9,6 +9,8 @@ from types import SimpleNamespace
 
 import pytest
 
+pytestmark = pytest.mark.historical
+
 
 def notebook_cells():
     path = Path(__file__).resolve().parents[2] / (

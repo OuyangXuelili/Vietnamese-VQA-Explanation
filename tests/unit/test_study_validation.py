@@ -1,5 +1,6 @@
 import hashlib
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -109,6 +110,45 @@ def test_full_pipeline_calls_exports_then_four_paired_comparisons(inputs):
     assert all("--bootstrap-resamples" in command for command in calls[4:])
 
 
+@pytest.mark.parametrize("inspect_only", [True, False])
+def test_verified_fixed_baselines_skip_both_model_exports(inputs, monkeypatch, inspect_only):
+    events, calls = [], []
+    plan = {"receipt": {"schema": "validation_baseline_reuse_v1"}}
+    monkeypatch.setattr(study, "prepare_baseline_reuse", lambda *a: plan)
+    monkeypatch.setattr(study, "write_baseline_reuse", lambda p: events.append("copied") or
+                        p["receipt"])
+    result = study.run_validation(
+        *inputs, baseline_source=inputs[0].parent / "baseline", baseline_sha256={},
+        inspect_only=inspect_only, runner=lambda cmd, **kw: calls.append(cmd),
+    )
+    commands = result["commands"] if inspect_only else calls[:2]
+    assert [command[command.index("--experiment-id") + 1] for command in commands] == [
+        "M2_SFT_CHOSEN", "M3_DPO"]
+    assert events == ([] if inspect_only else ["copied"])
+    assert len(calls) == (0 if inspect_only else 6)
+    assert inputs[-1].exists() is not inspect_only
+
+
+def test_invalid_baseline_stops_before_any_export_or_receipt(inputs, monkeypatch):
+    def invalid(*args):
+        raise ValueError("Baseline checksum mismatch")
+    monkeypatch.setattr(study, "prepare_baseline_reuse", invalid)
+    with pytest.raises(ValueError, match="checksum"):
+        study.run_validation(*inputs, baseline_source="baseline", baseline_sha256={},
+                             runner=lambda *a, **kw: pytest.fail("must not export"))
+    assert not inputs[-1].exists()
+
+
+@pytest.mark.parametrize("options", [{"baseline_source": "baseline"},
+                                     {"baseline_sha256": {}},
+                                     {"baseline_source": "baseline", "baseline_sha256": {},
+                                      "relocate_from": "old_study"}])
+def test_baseline_options_do_not_allow_unpinned_or_old_study_reuse(inputs, options):
+    with pytest.raises(ValueError, match="together|relocation"):
+        study.run_validation(*inputs, **options)
+    assert not inputs[-1].exists()
+
+
 @pytest.fixture
 def main_inputs(inputs):
     root = Path(__file__).resolve().parents[2]
@@ -165,6 +205,83 @@ def test_main_study_exports_final_checkpoint_without_loading_model(main_inputs):
 def test_main_study_requires_explicit_declaration(main_inputs):
     with pytest.raises(ValueError, match="not complete"):
         study.run_validation(*main_inputs[0], inspect_only=True)
+
+
+def test_selects_completed_resume_without_changing_interrupted_attempt(main_inputs):
+    inputs, config = main_inputs
+    initial = inputs[1] / "m3_train"
+    resumed = inputs[1] / "m3_train_resume150"
+    shutil.copytree(initial, resumed)
+    path = initial / "training_result.json"
+    report = json.loads(path.read_text())
+    report.update(status="paused", global_step=150, epoch=1.2)
+    path.write_text(json.dumps(report))
+    original_bytes = path.read_bytes()
+
+    with pytest.raises(ValueError, match="not complete"):
+        study.run_validation(*inputs, study_config=config, inspect_only=True)
+    result = study.run_validation(
+        *inputs, study_config=config, inspect_only=True,
+        stage_names={"m3": "m3_train_resume150"},
+    )
+    command = result["commands"][1]
+    assert command[command.index("--adapter") + 1] == str(
+        resumed / "training/checkpoint-375")
+    assert result["training_evidence"]["m3"]["stage"] == resumed.name
+    assert path.read_bytes() == original_bytes
+    assert not inputs[-1].exists()
+
+
+@pytest.mark.parametrize("name", ["", "../m3_train", "/m3_train", "m2_train",
+                                  "m3_train/nested", "m3_train_resume/../x", "latest", 43])
+def test_rejects_invalid_training_attempt_names(main_inputs, name):
+    inputs, config = main_inputs
+    with pytest.raises(ValueError, match="stage name"):
+        study.run_validation(*inputs, study_config=config, inspect_only=True,
+                             stage_names={"m3": name})
+    assert not inputs[-1].exists()
+
+
+def test_unknown_or_missing_attempt_is_not_replaced_by_another_run(main_inputs):
+    inputs, config = main_inputs
+    with pytest.raises(ValueError, match="only m2 or m3"):
+        study.run_validation(*inputs, study_config=config, inspect_only=True,
+                             stage_names={"m4": "m4_train"})
+    with pytest.raises(FileNotFoundError, match="Missing selected training stage"):
+        study.run_validation(*inputs, study_config=config, inspect_only=True,
+                             stage_names={"m3": "m3_train_resume150"})
+
+
+def test_resumed_attempt_still_checks_adapter_bytes(main_inputs):
+    inputs, config = main_inputs
+    resumed = inputs[1] / "m3_train_resume150"
+    shutil.copytree(inputs[1] / "m3_train", resumed)
+    (resumed / "training/checkpoint-375/adapter_model.safetensors").write_bytes(b"changed")
+    with pytest.raises(ValueError, match="Adapter changed"):
+        study.run_validation(*inputs, study_config=config, inspect_only=True,
+                             stage_names={"m3": resumed.name})
+
+
+def test_linked_training_attempt_is_rejected(main_inputs, monkeypatch):
+    inputs, config = main_inputs
+    stage = inputs[1] / "m3_train"
+    monkeypatch.setattr(study.Path, "is_symlink", lambda path: path == stage)
+    with pytest.raises(ValueError, match="within the run group"):
+        study.run_validation(*inputs, study_config=config, inspect_only=True)
+
+
+def test_validation_receipt_prevents_switching_training_attempts(inputs):
+    resumed = inputs[1] / "m3_train_resume10"
+    shutil.copytree(inputs[1] / "m3_train", resumed)
+    calls = []
+    runner = lambda command, **kwargs: calls.append(command)  # noqa: E731
+    study.run_validation(*inputs, runner=runner)
+    receipt = inputs[-1] / "training_evidence.json"
+    saved = receipt.read_bytes()
+    with pytest.raises(ValueError, match="training selection changed"):
+        study.run_validation(*inputs, runner=runner, stage_names={"m3": resumed.name})
+    assert len(calls) == 8
+    assert receipt.read_bytes() == saved
 
 
 @pytest.mark.parametrize("field", ["global_step", "max_steps", "epoch"])

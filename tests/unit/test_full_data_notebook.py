@@ -1,7 +1,11 @@
 import ast
 import json
 
+import pytest
+
 from vqa_explanation.utils.environment import project_root
+
+pytestmark = pytest.mark.historical
 
 
 def test_full_data_notebook_is_clean_and_uses_verified_release():

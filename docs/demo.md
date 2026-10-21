@@ -15,7 +15,7 @@ và ảnh trong `configs/environments/local_full.yaml`, không mount Drive.
 Checkout mới cần tải đúng các tệp evidence/ảnh trước, không có trong source ZIP.
 
 - 12 câu lấy theo ID tăng dần, một câu mỗi ảnh từ validation; không lọc theo
-  đúng/sai hoặc chất lượng để chọn ví dụ đẹp. Không dùng test.
+  đúng/sai hoặc chất lượng đầu ra. Không dùng test.
 - Kiểm đủ 1.407 prediction với manifest/annotation, rồi kiểm hash từng ảnh ví dụ.
   Prediction/manifest/annotation phải khớp hash trong selection M1 đã đóng băng.
 - Đáp án, giải thích, đầu ra gốc và thời gian đều của lần suy luận đã lưu.

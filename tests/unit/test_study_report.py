@@ -10,6 +10,7 @@ from vqa_explanation.evaluation.study_report import (
     analyze_study,
     render_study_cases,
     render_study_markdown,
+    save_study_figures,
     verify_evidence,
 )
 from vqa_explanation.inference.export import select_records
@@ -63,6 +64,55 @@ def test_four_arm_analysis_keeps_all_groups_and_fixed_examples():
                               resamples=30)
     assert report["case_selection"] == reordered["case_selection"]
     assert report["bootstrap"] == reordered["bootstrap"]
+
+
+def test_training_seed_is_separate_from_bootstrap_and_inference_seed():
+    predictions, annotations = study_data()
+    report = analyze_study(predictions, annotations, training_seed=43, seed=42, resamples=30)
+    assert report["training_seed"] == 43
+    assert report["bootstrap_seed"] == 42
+    assert report["case_selection"]["seed"] == 42
+    assert report["inference_protocol"]["seed"] == 42
+    markdown = render_study_markdown(report)
+    assert markdown.startswith("# Validation M0–M3 — seed 43\n")
+    assert "image-bootstrap 30 lần, seed 42" in markdown
+
+
+def test_analysis_does_not_infer_training_seed_from_prediction_seed():
+    predictions, annotations = study_data()
+    report = analyze_study(predictions, annotations, seed=42, resamples=20)
+    assert report["training_seed"] is None
+    assert "seed chưa xác minh" in render_study_markdown(report)
+
+
+def test_historical_report_without_separate_bootstrap_fields_remains_readable():
+    predictions, annotations = study_data()
+    report = analyze_study(predictions, annotations, training_seed=42, resamples=20)
+    report.pop("bootstrap_seed")
+    report.pop("bootstrap_resamples")
+    text = render_study_markdown(report)
+    assert text.startswith("# Validation M0–M3 — seed 42\n")
+    assert "image-bootstrap 2,000 lần, seed 42" in text
+
+
+def test_plot_uses_training_seed_not_bootstrap_seed(tmp_path, monkeypatch):
+    from matplotlib.axes import Axes
+
+    predictions, annotations = study_data()
+    report = analyze_study(predictions, annotations, training_seed=43, seed=42, resamples=20)
+    titles = []
+    original = Axes.set
+
+    def capture(ax, **kwargs):
+        if "title" in kwargs:
+            titles.append(kwargs["title"])
+        return original(ax, **kwargs)
+
+    monkeypatch.setattr(Axes, "set", capture)
+    save_study_figures(report, tmp_path)
+    assert any("training seed 43" in title for title in titles)
+    assert not any("training seed 42" in title for title in titles)
+    assert (tmp_path / "metrics.png").is_file()
 
 
 @pytest.mark.parametrize("fault", ["missing_arm", "missing_row", "duplicate", "test",
@@ -202,6 +252,28 @@ def evidence(tmp_path, monkeypatch):
 def test_training_and_export_evidence_is_checked_without_loading_weights(evidence):
     result = verify_evidence(*evidence)
     assert result["training"]["m3"]["global_step"] == 375
+    assert result["training_seed"] == 42
+
+
+def test_training_seed_comes_from_verified_training_plans(evidence):
+    folder, annotations, predictions, _, canonical = evidence
+    study = Path("configs/experiments/preference_study_seed43.yaml")
+    settings = main_study_settings(study)
+    for arm in ("m2", "m3"):
+        stage = folder / "training" / arm
+        path = stage / "data_plan.json"
+        plan = json.loads(path.read_text())
+        plan["config"] = settings[arm]["config"]
+        plan["comparison_protocol"] = settings[arm]["protocol"]
+        plan.pop("sha256")
+        plan["sha256"] = hashlib.sha256(json.dumps(plan, sort_keys=True).encode()).hexdigest()
+        path.write_text(json.dumps(plan), "utf-8")
+        result_path = stage / "training_result.json"
+        result = json.loads(result_path.read_text())
+        result["plan_sha256"] = plan["sha256"]
+        result_path.write_text(json.dumps(result), "utf-8")
+    result = verify_evidence(folder, annotations, predictions, study, canonical)
+    assert result["training_seed"] == 43
 
 
 @pytest.mark.parametrize("fault", ["state", "weights", "model", "versions", "source",

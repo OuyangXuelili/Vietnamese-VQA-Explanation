@@ -6,6 +6,10 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.historical
+
 
 def test_legacy_notebook_compiles_and_is_frozen():
     root = Path(__file__).resolve().parents[2]

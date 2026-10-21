@@ -18,8 +18,16 @@ def main():
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--study-config", type=Path,
                         help="Locked main study; omit only for the historical 186-pair run")
+    parser.add_argument("--m2-stage", default="m2_train",
+                        help="Selected M2 training directory within the run group")
+    parser.add_argument("--m3-stage", default="m3_train",
+                        help="Selected M3 training directory, e.g. m3_train_resume150")
     parser.add_argument("--relocate-from", type=Path,
                         help="Copy verified old exports to a new directory after a storage move")
+    parser.add_argument("--baseline-source", type=Path,
+                        help="Reuse only complete, verified M0/M1 from this directory")
+    parser.add_argument("--baseline-sha256", type=json.loads,
+                        help="JSON mapping of M0/M1 prediction and manifest filenames to SHA-256")
     parser.add_argument("--inspect", action="store_true")
     args = parser.parse_args()
     args.output_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -27,9 +35,14 @@ def main():
         locks.enter_context(FileLock(str(args.output_dir) + ".lock", timeout=0))
         if args.relocate_from is not None:
             locks.enter_context(FileLock(str(args.relocate_from.resolve()) + ".lock", timeout=0))
+        if args.baseline_source is not None:
+            locks.enter_context(FileLock(str(args.baseline_source.resolve()) + ".lock", timeout=0))
         result = run_validation(args.environment, args.run_group, args.m1_adapter, args.output_dir,
                                 inspect_only=args.inspect, relocate_from=args.relocate_from,
-                                study_config=args.study_config)
+                                study_config=args.study_config,
+                                stage_names={"m2": args.m2_stage, "m3": args.m3_stage},
+                                baseline_source=args.baseline_source,
+                                baseline_sha256=args.baseline_sha256)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 

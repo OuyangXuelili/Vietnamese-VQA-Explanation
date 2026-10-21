@@ -4,7 +4,9 @@ Phạm vi chính đã chốt lại ngày 14/10 trong [kế hoạch](research_pla
 bộ preference chính 1.000 cặp qua kiểm thị giác, ba epoch, ba seed.
 `preference_study_v2.yaml` đã khóa bộ duyệt lại ngày 15/10. Seed 42: M2 và
 M3 đều hoàn tất ba epoch; đã có validation đủ bốn nhánh và đối chứng đổi ảnh.
-Seed 43 đang train; test và chấm chất lượng theo ảnh chưa hoàn tất.
+Seed 43 đã train xong và có bảng validation/BERTScore/CI kiểm độc lập.
+Seed 44 đã hoàn tất train và đánh giá; bảng ba seed đã kiểm ngày 20/10;
+test và chấm chất lượng theo ảnh chưa hoàn tất.
 Phần matched-LR/186 cặp bên dưới là giao thức lượt trước; giữ để truy vết,
 không dùng làm cấu hình thực thi của nghiên cứu chính mới.
 
@@ -19,6 +21,12 @@ Mỗi run phải lưu:
 - log, checkpoint và prediction.
 
 Không chọn checkpoint hoặc thay rubric dựa trên test.
+
+Seed huấn luyện được truyền vào cả `seed` và `data_seed` của Trainer.
+M2/M3 bắt đầu từ cùng adapter M1 đã học, tắt dropout; đổi seed chủ yếu đổi
+thứ tự xáo trộn dữ liệu. Mỗi seed là một lần chạy độc lập, không học nối
+từ adapter của seed khác. Seed lấy mẫu chấm người hoặc bootstrap có vai trò
+riêng; không được nhầm chúng với seed huấn luyện dù cùng dùng giá trị 42.
 
 Đây là danh sách tối thiểu. Cổng kiểm tra M1 và cách so M0/M1 được mô tả cụ thể
 ở [kế hoạch](research_plan.md) và [comparison_gate.md](comparison_gate.md).
@@ -54,8 +62,8 @@ Quy tắc chọn M1 và run một epoch lịch sử giữ nguyên.
   Giao thức tái lập ở [sft_full.md](sft_full.md), không chạy lại để bắt đầu M2/M3.
   Trong lượt 186 cặp ngày 12/10, M2/M3 chốt **checkpoint cuối sau một epoch**
   cho cả hai nhánh, không chọn
-  lại bằng test hoặc so minimum DPO loss với minimum SFT loss. Một seed 42
-  cho vòng chính; M2/M3 cùng LR 5e-6, M3 beta 0,1, effective batch 8.
+  lại bằng test hoặc so minimum DPO loss với minimum SFT loss. Lượt 186 cặp
+  chỉ dùng seed 42; M2/M3 cùng LR 5e-6, M3 beta 0,1, effective batch 8.
   Chốt ngày 12/10 trước cả hai run; chưa gọi là siêu tham số tối ưu.
   Tắt dropout ở cả hai nhánh, cùng preprocessing ảnh xác định; reference frozen.
   Không grid search mặc định. Nếu thêm thử nghiệm chất lượng, ghi sửa protocol

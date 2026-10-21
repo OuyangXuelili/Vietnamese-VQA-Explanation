@@ -18,6 +18,8 @@ def main():
                  "study-config"):
         parser.add_argument(f"--{name}", type=Path, required=True)
     parser.add_argument("--inspect", action="store_true")
+    parser.add_argument("--m2-stage", default="m2_train")
+    parser.add_argument("--m3-stage", default="m3_train")
     args = parser.parse_args()
     args.output_dir.parent.mkdir(parents=True, exist_ok=True)
     with ExitStack() as locks:
@@ -26,6 +28,7 @@ def main():
         result = recover_validation(
             args.environment, args.run_group, args.m1_adapter, args.source_dir, args.output_dir,
             study_config=args.study_config, inspect_only=args.inspect,
+            stage_names={"m2": args.m2_stage, "m3": args.m3_stage},
         )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 

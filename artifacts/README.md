@@ -6,11 +6,16 @@ checkpoint, log và kết quả chạy được lưu riêng. Kết quả hiện 
 
 Bộ nghiên cứu chính là
 `../data/preferences/vivqax_m1_3683_v2/frozen_1000_reviewed_20261015/`.
-Hồ sơ seed 42/43 nằm trong `preference_v2/`; đối chứng đổi ảnh nằm trong
+Hồ sơ cả ba seed nằm trong `preference_v2/`; đối chứng đổi ảnh nằm trong
 `image_dependence/`. Các mục 186 cặp dưới đây là lịch sử, không phải bộ train chính.
 
 | Mục đích | Vị trí hiện hành |
 |---|---|
+| Validation seed 44 và hồ sơ train | `preference_v2/validation_seed44_20261020/` |
+| Bảng validation ba seed | `../reports/generated/preference_validation_three_seeds_20261020/` |
+| Notebook 05 có output và ảnh hoàn tất | `validation_analysis_20261020/` |
+| Đối chứng LR 5e-6: launch, snapshot ngắt/nối và notebook train hoàn tất | `preference_v2/lr5e6_20261020/` |
+| Bảo trì baseline/ZIP: log kiểm, hash bảo toàn và record validation LR mới | `maintenance_baseline_reuse_20261021/` |
 | Kết quả duyệt cặp M1 | `preference_editor_m1_3683_2000_20261008/review_results_final_20261014.html` |
 | Pilot 100 đã chốt | `../data/preferences/pilot_ai_20261012/decision_record.json` |
 | Notes toàn pool — 2.000 quyết định | `../data/preferences/review_complete_20261014/reviewed_notes.jsonl` |
@@ -25,6 +30,11 @@ Hồ sơ seed 42/43 nằm trong `preference_v2/`; đối chứng đổi ảnh n�
 | Rà và sửa source 12/10 | `code_cleanup_20261012/` |
 | Tổ chức notebook và kiểm toàn repo 13/10 | `code_organization_20261013/review.json` |
 | Output M1 giữ nguyên | `../notebooks/archive/03_m1_completed_with_outputs_20261013.ipynb` |
+
+LR 5e-6 đã có hai report train `passed` / 375 update; validation chưa chạy.
+Snapshot hoàn tất là `preference_v2/lr5e6_20261020/04_lr5e6_completed_20261021.ipynb`.
+Đây là kết quả train, chưa thay bảng validation ba seed ở trên. Checkpoint cuối
+M3 còn cần đọc lại payload độc lập theo nhật ký.
 
 `project_source.zip` ở gốc là snapshot ngày 18/09/2026. Để tiếp tục dự án,
 dùng release đã xác minh trong `releases/` và đọc nhật ký để chọn đúng bản.

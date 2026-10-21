@@ -29,8 +29,7 @@ bằng cách chạy repo đó. Không so trực tiếp điểm của họ với 
 backbone, split validation và evaluator chưa đồng nhất. Cũng không cần kéo
 toàn bộ framework GRPO/reward của họ vào đồ án.
 
-Bài đang mở trước đây,
-[Generate then Select (ACL Findings 2023)](https://aclanthology.org/2023.findings-acl.147/),
+[Generate then Select (ACL Findings 2023)](https://aclanthology.org/2023.findings-acl.147/)
 là pipeline sinh rồi chọn đáp án dùng tri thức ngoài trên OK-VQA. Đây không
 phải nguồn chính cho đánh giá giải thích tiếng Việt; không dùng nó để biện
 minh việc thêm retrieval/selector vào phạm vi đã chốt.
@@ -40,15 +39,14 @@ nhấn mạnh nghiên cứu, đề xuất và thi hành giải pháp ở quy mô
 này không phải rubric ngành Khoa học dữ liệu của PTIT; việc duyệt đề tài và
 chuẩn chấm cụ thể vẫn phải theo giảng viên/hội đồng của người thực hiện.
 
-Kết luận của lượt rà soát: đủ chất liệu cho đồ án thực nghiệm, chưa đủ bằng
-chứng hoàn thành. Tập trung M1, cặp ưu tiên có kiểm duyệt, M2/M3 và đánh giá
-độc lập; không mở rộng số mô hình để thay cho đối chứng còn thiếu.
+Các nguồn trên hỗ trợ thiết kế so sánh M1, SFT bổ sung và DPO. Kết quả
+của dự án vẫn cần được kiểm tra bằng đối chứng và đánh giá độc lập.
 
 ## Đồ án môn học quốc tế — 12/10/2026
 
 Đây là báo cáo môn học công khai, không phải khóa luận tốt nghiệp hoặc bài
-đã được mình tái lập. Dùng để học thiết kế, không sao chép số liệu hay suy ra
-điểm của dự án hiện tại.
+đã được tái lập trong dự án này. Dùng để tham khảo thiết kế, không sao chép
+số liệu hay suy ra điểm của dự án hiện tại.
 
 - [VQA Preference Alignment with ORPO and DPO, Stanford CS231n 2024](https://cs231n.stanford.edu/2024/papers/visual-question-and-answering-preference-alignment-with-orpo-and.pdf):
   một backbone BLIP-VQA-base, so SFT, SFT+DPO và ORPO; đo chất lượng cùng

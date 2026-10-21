@@ -11,6 +11,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from vqa_explanation.training.preference_data import prepare_stage
+from vqa_explanation.training.sensitivity import validate_sensitivity_launch
 from vqa_explanation.utils.environment import project_root
 from vqa_explanation.utils.run_provenance import sha256_file
 
@@ -131,6 +132,10 @@ def prepare_launch(launch_path, project_dir, arm, mode,
     if paths is None:
         return {"status": "blocked", "reason": "Preference dataset and final N are not locked",
                 "main_training_started": False}, None
+    sensitivity = None
+    if ("study_role" in record
+            or paths["study_config"].stem == "preference_study_lr5e6"):
+        sensitivity = validate_sensitivity_launch(record, project_dir, paths["study_config"])
     decision_hash = validate_dataset_lock(record, project_dir, paths["preferences"])
     config_key = "m2_config" if arm == "m2" else "m3_config"
     relative = record.get(config_key)
@@ -151,7 +156,7 @@ def prepare_launch(launch_path, project_dir, arm, mode,
     if mode == "train" and gpu_gate is None:
         raise ValueError("Main training requires the matching GPU gate")
     return {"status": "metadata_passed", "plan": plan, "gpu_training_verified": False,
-            "preference_decision_sha256": decision_hash}, args
+            "preference_decision_sha256": decision_hash, "sensitivity": sensitivity}, args
 
 
 def stage_output(run_folder, arm, mode, attempt="initial"):

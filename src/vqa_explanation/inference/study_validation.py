@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 import yaml
 
+from vqa_explanation.inference.baseline_reuse import prepare_baseline_reuse, write_baseline_reuse
 from vqa_explanation.inference.export import read_jsonl, validate_selected_records
 from vqa_explanation.inference.export_relocation import (
     prepare_relocation,
@@ -86,7 +87,30 @@ def verify_main_stage(stage, arm, report, plan, settings, annotations_hash):
         raise ValueError(f"{arm}: final trainer state is incomplete")
 
 
-def prepare_validation(environment_path, run_group, m1_adapter, output_dir, *, study_config=None):
+def training_stages(run_group, stage_names=None):
+    """Resolve explicitly selected attempts within the training run group."""
+    if stage_names is not None and (
+        not isinstance(stage_names, dict) or set(stage_names) - {"m2", "m3"}
+    ):
+        raise ValueError("Training stages must select only m2 or m3")
+    stages = {}
+    for arm in ("m2", "m3"):
+        name = (stage_names or {}).get(arm, f"{arm}_train")
+        if not isinstance(name, str) or not re.fullmatch(
+            rf"{arm}_train(?:_[A-Za-z0-9][A-Za-z0-9_-]*)?", name
+        ):
+            raise ValueError(f"{arm}: invalid training stage name")
+        stage = run_group / name
+        if stage.is_symlink() or stage.resolve().parent != run_group:
+            raise ValueError(f"{arm}: training stage must stay within the run group")
+        if not stage.is_dir():
+            raise FileNotFoundError(f"Missing selected training stage: {stage}")
+        stages[arm] = stage
+    return stages
+
+
+def prepare_validation(environment_path, run_group, m1_adapter, output_dir, *, study_config=None,
+                       stage_names=None):
     environment = load_environment(Path(environment_path))
     annotations = environment["annotations"].parent / "validation.jsonl"
     if sha256_file(annotations) != VALIDATION_SHA256:
@@ -105,9 +129,10 @@ def prepare_validation(environment_path, run_group, m1_adapter, output_dir, *, s
         raise ValueError("Evaluation output cannot contain source, data or training runs")
     settings = main_study_settings(study_config) if study_config is not None else None
     canonical_hash = sha256_file(environment["annotations"]) if settings else None
+    stages = training_stages(run_group, stage_names)
     adapters, evidence, plans = {"m0": None}, {}, {}
     for arm in ("m2", "m3"):
-        stage = run_group / f"{arm}_train"
+        stage = stages[arm]
         report = json.loads((stage / "training_result.json").read_text("utf-8"))
         plan = json.loads((stage / "data_plan.json").read_text("utf-8"))
         content = {key: value for key, value in plan.items() if key != "sha256"}
@@ -132,7 +157,8 @@ def prepare_validation(environment_path, run_group, m1_adapter, output_dir, *, s
         adapter = stage / "training" / f"checkpoint-{budget['updates']}"
         verify_adapter(adapter, report["output_adapter"]["files"])
         adapters[arm], plans[arm] = adapter, plan
-        evidence[arm] = {"report_sha256": sha256_file(stage / "training_result.json"),
+        evidence[arm] = {"stage": stage.name,
+                         "report_sha256": sha256_file(stage / "training_result.json"),
                          "plan_sha256": plan["sha256"], "checkpoint": str(adapter),
                          "adapter_files": report["output_adapter"]["files"]}
     if (plans["m2"]["m1_adapter"] != plans["m3"]["m1_adapter"]
@@ -181,10 +207,11 @@ def comparison_cache(destination, left, right, annotations, *, record=False):
 
 
 def recover_validation(environment_path, run_group, m1_adapter, source_dir, output_dir, *,
-                       study_config, inspect_only=False):
+                       study_config, inspect_only=False, stage_names=None):
     """Seed a separate validation attempt from verified files and recovery copies."""
     environment, annotations, adapters, _ = prepare_validation(
-        environment_path, run_group, m1_adapter, output_dir, study_config=study_config
+        environment_path, run_group, m1_adapter, output_dir, study_config=study_config,
+        stage_names=stage_names,
     )
     source_dir, output_dir = Path(source_dir).resolve(), Path(output_dir).resolve()
     if not source_dir.is_dir() or output_dir.exists():
@@ -230,12 +257,33 @@ def export_command(root, environment, annotations, adapter, arm, output):
     return command
 
 
+def baseline_arguments(environment, annotations, adapters, output_dir):
+    return {arm: SimpleNamespace(
+        annotations=annotations, image_root=environment["image_root"],
+        output=output_dir / f"{arm}.jsonl", adapter=adapters[arm],
+        split="validation", limit=0, seed=42, model_id=MODEL_ID, revision=MODEL_REVISION,
+        min_pixels=200704, max_pixels=200704, max_new_tokens=128, load_in_4bit=True,
+    ) for arm in ("m0", "m1")}
+
+
 def run_validation(environment_path, run_group, m1_adapter, output_dir, *, inspect_only=False,
-                   runner=run_command, relocate_from=None, study_config=None):
+                   runner=run_command, relocate_from=None, study_config=None, stage_names=None,
+                   baseline_source=None, baseline_sha256=None):
+    if (baseline_source is None) != (baseline_sha256 is None):
+        raise ValueError("Baseline source and pinned SHA-256 must be supplied together")
+    if baseline_source is not None and relocate_from is not None:
+        raise ValueError("Baseline reuse cannot be combined with relocation of all study arms")
     environment, annotations, adapters, evidence = prepare_validation(
-        environment_path, run_group, m1_adapter, output_dir, study_config=study_config
+        environment_path, run_group, m1_adapter, output_dir, study_config=study_config,
+        stage_names=stage_names,
     )
     root, output_dir = project_root(), Path(output_dir).resolve()
+    baseline = None
+    if baseline_source is not None:
+        baseline = prepare_baseline_reuse(
+            baseline_source, baseline_sha256,
+            baseline_arguments(environment, annotations, adapters, output_dir),
+        )
     relocations = []
     if relocate_from is not None and not Path(relocate_from).is_dir():
         raise ValueError("Original export directory is missing")
@@ -265,13 +313,29 @@ def run_validation(environment_path, run_group, m1_adapter, output_dir, *, inspe
                 json.dump({"schema": "validation_export_relocation_v1",
                            "source_dir": str(Path(relocate_from).resolve()),
                            "receipts": receipts}, handle, ensure_ascii=False, indent=2)
+    export_arms = ("m2", "m3") if baseline is not None else ("m2", "m3", "m0", "m1")
     commands = [export_command(root, environment, annotations, adapters[arm], arm,
-                               output_dir / f"{arm}.jsonl") for arm in ("m2", "m3", "m0", "m1")]
+                               output_dir / f"{arm}.jsonl") for arm in export_arms]
     if inspect_only:
         return {"status": "inputs_verified", "questions": 1407, "commands": commands,
-                "relocations": [plan["receipt"] for plan in relocations]}
+                "training_evidence": evidence,
+                "relocations": [plan["receipt"] for plan in relocations],
+                "baseline_reuse": baseline["receipt"] if baseline is not None else None}
+    training_receipt = {"schema": "validation_training_evidence_v1", "training": evidence,
+                        "study_config_sha256": sha256_file(Path(study_config))
+                        if study_config is not None else None}
+    receipt_path = output_dir / "training_evidence.json"
+    if receipt_path.exists():
+        if json.loads(receipt_path.read_text("utf-8")) != training_receipt:
+            raise ValueError("Validation training selection changed; use a new output directory")
+    else:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        with receipt_path.open("x", encoding="utf-8") as handle:
+            json.dump(training_receipt, handle, indent=2)
+    if baseline is not None:
+        print(json.dumps(write_baseline_reuse(baseline), ensure_ascii=False), flush=True)
     records = read_jsonl(annotations)
-    for arm, command in zip(("m2", "m3", "m0", "m1"), commands, strict=True):
+    for arm, command in zip(export_arms, commands, strict=True):
         print(f"Export {arm}: all 1407 validation questions", flush=True)
 
         def save_progress(line, output=output_dir / f"{arm}.jsonl"):
@@ -298,4 +362,5 @@ def run_validation(environment_path, run_group, m1_adapter, output_dir, *, inspe
         if study_config is not None:
             comparison_cache(destination, *predictions, annotations, record=True)
     return {"status": "completed", "questions": 1407, "training_evidence": evidence,
+            "baseline_reuse": baseline["receipt"] if baseline is not None else None,
             "output_dir": str(output_dir)}
