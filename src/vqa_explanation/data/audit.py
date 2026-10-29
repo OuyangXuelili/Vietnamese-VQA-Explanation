@@ -52,6 +52,8 @@ def audit_records(
                 try:
                     with Image.open(image_path) as image:
                         image.verify()
+                    with Image.open(image_path) as image:
+                        image.load()
                 except (OSError, ValueError, Image.DecompressionBombError):
                     counts["corrupt_images"] += 1
 

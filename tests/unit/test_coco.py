@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
 from vqa_explanation.data.coco import coco_image_url, select_smoke_images, valid_jpeg
@@ -42,3 +43,13 @@ def test_valid_jpeg(tmp_path: Path) -> None:
     image_path = tmp_path / "sample.jpg"
     Image.new("RGB", (4, 4), color="red").save(image_path, format="JPEG")
     assert valid_jpeg(image_path)
+
+
+@pytest.mark.parametrize("progressive", [False, True])
+def test_valid_jpeg_rejects_truncated_scan_data(tmp_path, progressive):
+    path = tmp_path / "truncated.jpg"
+    Image.new("RGB", (128, 128), color="red").save(path, progressive=progressive)
+    path.write_bytes(path.read_bytes()[:-10])
+    with Image.open(path) as image:
+        image.verify()
+    assert not valid_jpeg(path)

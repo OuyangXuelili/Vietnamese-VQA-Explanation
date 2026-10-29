@@ -27,6 +27,18 @@ def test_audit_accepts_valid_image(tmp_path):
     assert report["counts"].get("corrupt_images", 0) == 0
 
 
+def test_audit_rejects_truncated_jpeg_with_valid_headers(tmp_path):
+    path = tmp_path / "truncated.jpg"
+    Image.new("RGB", (128, 128), color="red").save(path)
+    payload = path.read_bytes()[:-10]
+    path.write_bytes(payload)
+    with Image.open(path) as image:
+        image.verify()
+    report = audit_records([row(path.name)], True, tmp_path)
+    assert report["counts"]["corrupt_images"] == 1
+    assert path.read_bytes() == payload
+
+
 def test_audit_blocks_path_escape(tmp_path):
     report = audit_records([row("../outside.jpg")], True, tmp_path)
     assert report["counts"]["unsafe_image_paths"] == 1
