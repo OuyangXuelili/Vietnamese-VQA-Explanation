@@ -88,14 +88,15 @@ def test_dependency_failure_is_not_reported_as_success(project, tmp_path):
         cloud.prepare_environment(project, directory, runner=runner)
 
 
-def test_semantic_profile_uses_separate_requirements(project, tmp_path):
-    (project / "requirements-cloud-semantic.txt").write_text("-e .\n")
-    directory = tmp_path / "semantic_env"
+@pytest.mark.parametrize("profile", ["semantic", "demo"])
+def test_named_profile_uses_separate_requirements(project, tmp_path, profile):
+    (project / f"requirements-cloud-{profile}.txt").write_text("-e .\n")
+    directory = tmp_path / f"{profile}_env"
     create_fake_environment(directory)
     calls = []
-    cloud.prepare_environment(project, directory, profile="semantic",
+    cloud.prepare_environment(project, directory, profile=profile,
                               runner=lambda command, **kwargs: calls.append(command))
-    assert str(project / "requirements-cloud-semantic.txt") in calls[0]
+    assert str(project / f"requirements-cloud-{profile}.txt") in calls[0]
 
 
 def test_unknown_profile_does_not_touch_environment(project, tmp_path):

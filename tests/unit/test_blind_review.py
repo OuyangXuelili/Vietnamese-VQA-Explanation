@@ -77,6 +77,58 @@ def test_sample_is_prediction_independent_and_one_question_per_image():
     assert len({r["image_id"] for r in first}) == 4
 
 
+def test_validation_sample_does_not_select_train_or_test_images():
+    rows = [{"question_id": f"{split}{i}", "image_id": f"{split}{i}", "split": split}
+            for split in ("train", "validation", "test") for i in range(8)]
+    selected = select_sample(rows, count=4, split="validation")
+    assert len(selected) == 4 and all(r["split"] == "validation" for r in selected)
+    assert selected == select_sample(list(reversed(rows)), count=4, split="validation")
+    with pytest.raises(ValueError, match="validation or test"):
+        select_sample(rows, count=4, split="train")
+
+
+def test_forged_sample_split_is_rejected_before_writing(blind_bundle):
+    root = blind_bundle.parent
+    sample_path = root / "sample.json"
+    sample = json.loads(sample_path.read_text("utf-8"))
+    sample["split"] = "validation"
+    sample_path.write_text(json.dumps(sample), "utf-8")
+    with pytest.raises(ValueError, match="canonical test"):
+        prepare_blind_review(root / "all.jsonl", sample_path,
+                             {role: root / f"{role}.jsonl" for role in EXPERIMENT_IDS},
+                             root, root / "wrong_split")
+    assert not (root / "wrong_split").exists()
+
+
+def test_validation_pages_and_scores_are_not_test_results(blind_bundle):
+    root = blind_bundle.parent
+    annotations = list(read_jsonl(root / "all.jsonl"))
+    for row in annotations:
+        row["split"] = "validation"
+    write_jsonl(root / "validation_all.jsonl", annotations)
+    paths = {}
+    for role in EXPERIMENT_IDS:
+        rows = list(read_jsonl(root / f"{role}.jsonl"))
+        for row in rows:
+            row["split"] = "validation"
+        paths[role] = root / f"validation_{role}.jsonl"
+        write_jsonl(paths[role], rows)
+    freeze_sample(root / "validation_all.jsonl", root / "validation_sample.json",
+                  count=3, split="validation")
+    bundle = root / "validation_bundle"
+    prepare_blind_review(root / "validation_all.jsonl", root / "validation_sample.json", paths,
+                         root, bundle, expected_split="validation")
+    page = (bundle / "rater1/index.html").read_text("utf-8")
+    assert "Thống nhất cách chấm — validation" in page
+    assert "Không phải kết quả test" in page
+    assert all(role not in page for role in EXPERIMENT_IDS)
+    report = summarize_blind_review(bundle, ratings(bundle))
+    assert report["status"] == "calibration_complete" and report["split"] == "validation"
+    test_ids = {r["entry_id"] for r in read_jsonl(blind_bundle / "rater1/blank_ratings.jsonl")}
+    val_ids = {r["entry_id"] for r in read_jsonl(bundle / "rater1/blank_ratings.jsonl")}
+    assert not test_ids & val_ids
+
+
 def test_pages_hide_model_keys_and_leave_labels_pending(blind_bundle):
     for rater in ("rater1", "rater2"):
         page = (blind_bundle / rater / "index.html").read_text("utf-8")
@@ -280,7 +332,7 @@ const first=mount(new Map(),true);
 const field=first.elements.form.children[5].children[0];
 field.value='Fixture evidence';field.listeners.input();
 assert.ok(first.elements.status.textContent.includes('Không lưu được nháp'));
-first.elements.export.listeners.click();
+first.elements.draft.listeners.click();
 const exported=await first.exported().text();
 const rows=exported.trim().split(/\r?\n/).map(JSON.parse);
 assert.equal(rows.length,source.length);
@@ -317,3 +369,57 @@ def test_blind_draft_identity_is_separate_for_each_rater_and_source(blind_bundle
         return re.search(r"const storageKey='([^']+)'", page).group(1)
 
     assert len({key(first), key(second), key(third)}) == 3
+
+
+def test_incomplete_review_can_be_exported_and_imported_as_a_draft(blind_bundle):
+    page = (blind_bundle / "rater1/index.html").read_text("utf-8")
+    run_editor_regression(page, r"""
+const first=mount(new Map(),true);
+first.elements.form.children[0].children[0].value='reviewed';
+first.elements.form.children[0].children[0].listeners.input();
+first.elements.form.children[5].children[0].value='An unfinished observation';
+first.elements.form.children[5].children[0].listeners.input();
+first.elements.export.listeners.click();assert.equal(first.exported(),undefined);
+first.elements.draft.listeners.click();const text=await first.exported().text();
+const second=mount();
+await second.elements.import.listeners.change({target:{files:[{text:async()=>text}]}});
+assert.equal(second.scope.reviewTest.rows[0].review_status,'reviewed');
+assert.equal(second.scope.reviewTest.rows[0].reviewer,null);
+assert.equal(second.scope.reviewTest.rows[0].image_evidence,'An unfinished observation');
+assert.ok(second.elements.progress.textContent.includes('0/12'));
+assert.equal(second.scope.reviewTest.rows[1].prediction_answer,source[1].prediction_answer);
+""")
+
+
+def test_progress_counts_completed_images_and_navigation_skips_completed_rows(blind_bundle):
+    page = (blind_bundle / "rater1/index.html").read_text("utf-8")
+    run_editor_regression(page, """
+const first=mount();
+for(let i=0;i<4;i++)Object.assign(first.scope.reviewTest.rows[i],{
+review_status:'reviewed',reviewer:'A',reviewed_at:'2026-11-01T10:00:00+07:00',
+answer_assessment:'correct',explanation_support:2,unsupported_detail:'no',image_evidence:'Fixture'});
+first.elements.picker.value='0';first.elements.next.listeners.click();
+assert.equal(first.elements.picker.value,'4');
+first.elements.form.children[5].children[0].value='Still in progress';
+first.elements.form.children[5].children[0].listeners.input();
+assert.ok(first.elements.progress.textContent.includes('4/12'));
+assert.ok(first.elements.progress.textContent.includes('1/3'));
+first.elements.export.listeners.click();assert.equal(first.exported(),undefined);
+""")
+
+
+def test_final_export_requires_one_consistent_reviewer_and_keeps_exact_outputs(blind_bundle):
+    page = (blind_bundle / "rater1/index.html").read_text("utf-8")
+    run_editor_regression(page, r"""
+const first=mount();
+for(const row of first.scope.reviewTest.rows)Object.assign(row,{
+review_status:'reviewed',reviewer:'A',reviewed_at:'2026-11-01T10:00:00+07:00',
+answer_assessment:'uncertain',explanation_support:0,unsupported_detail:'uncertain',
+image_evidence:'Fixture only'});
+first.scope.reviewTest.rows[0].reviewer='B';
+first.elements.export.listeners.click();assert.equal(first.exported(),undefined);
+first.scope.reviewTest.rows[0].reviewer='A';first.elements.export.listeners.click();
+const rows=(await first.exported().text()).trim().split(/\r?\n/).map(JSON.parse);
+assert.equal(rows.length,source.length);
+rows.forEach((row,i)=>assert.equal(row.prediction_explanation,source[i].prediction_explanation));
+""")

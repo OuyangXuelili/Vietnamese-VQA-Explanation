@@ -93,13 +93,9 @@ def write_relocation(plan):
     return receipt
 
 
-def prepare_snapshot_recovery(source, args):
-    """Prefer the longest verified, closed prefix without altering the original."""
+def verified_snapshots(source):
+    """Check closed snapshot receipts before using their files."""
     source = Path(source).resolve()
-    plans = []
-    original = prepare_relocation(source, args)
-    if original is not None:
-        plans.append(original)
     for receipt_path in sorted((source.parent / "recovery").glob(
         f"{source.stem}_*/snapshot.json"
     )):
@@ -109,9 +105,63 @@ def prepare_snapshot_recovery(source, args):
         if (receipt.get("schema") != "closed_export_snapshot_v1"
                 or receipt.get("output") != str(source)
                 or receipt.get("snapshot") != str(snapshot)
+                or snapshot.resolve() != snapshot or manifest.resolve() != manifest
+                or type(receipt.get("predictions")) is not int
+                or receipt["predictions"] < 0
                 or receipt.get("sha256") != sha256_file(snapshot)
                 or receipt.get("manifest_sha256") != sha256_file(manifest)):
             raise ValueError("Recovery snapshot receipt or file changed")
+        yield snapshot, receipt_path, receipt
+
+
+def require_safe_snapshot_resume(output, records):
+    """Refuse to regenerate rows that still exist in a closed recovery copy."""
+    output = Path(output).resolve()
+    snapshots = []
+    for snapshot, _, receipt in verified_snapshots(output):
+        manifest = json.loads(snapshot.with_suffix(snapshot.suffix + ".manifest.json").read_text(
+            "utf-8"))
+        rows = read_jsonl(snapshot)
+        validate_saved_predictions(rows, records, manifest)
+        if len(rows) != receipt["predictions"]:
+            raise ValueError("Recovery snapshot count changed")
+        snapshots.append((rows, manifest))
+    if not snapshots:
+        return
+    longest, expected_manifest = max(snapshots, key=lambda item: len(item[0]))
+    for rows, manifest in snapshots:
+        if manifest != expected_manifest or rows != longest[:len(rows)]:
+            raise ValueError("Recovery snapshots contain conflicting prefixes or manifests")
+    saved = read_jsonl(output) if output.is_file() else []
+    if len(saved) < len(longest):
+        raise ValueError(
+            f"Recovery required for {output}: main file has {len(saved)} rows, "
+            f"closed snapshot has {len(longest)}. Recover the closed snapshot into a new "
+            "output directory before resuming; do not restart export."
+        )
+    manifest_path = output.with_suffix(output.suffix + ".manifest.json")
+    if not manifest_path.is_file() or json.loads(manifest_path.read_text(
+        "utf-8"
+    )) != expected_manifest:
+        raise ValueError("Main export and recovery snapshot manifests differ")
+    validate_saved_predictions(saved, records, expected_manifest)
+    if saved[:len(longest)] != longest:
+        raise ValueError("Main export conflicts with its closed recovery snapshot")
+    with output.open("rb") as handle:
+        if saved:
+            handle.seek(-1, 2)
+            if handle.read(1) != b"\n":
+                raise ValueError("Main export has an incomplete final line; inspect recovery")
+
+
+def prepare_snapshot_recovery(source, args):
+    """Prefer the longest verified, closed prefix without altering the original."""
+    source = Path(source).resolve()
+    plans = []
+    original = prepare_relocation(source, args)
+    if original is not None:
+        plans.append(original)
+    for snapshot, receipt_path, receipt in verified_snapshots(source):
         plan = prepare_relocation(snapshot, args)
         if plan is None or len(plan["predictions"]) != receipt.get("predictions"):
             raise ValueError("Recovery snapshot count changed")

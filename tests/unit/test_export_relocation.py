@@ -8,6 +8,7 @@ from vqa_explanation.inference.export import export_predictions, read_jsonl
 from vqa_explanation.inference.export_relocation import (
     prepare_relocation,
     prepare_snapshot_recovery,
+    require_safe_snapshot_resume,
     snapshot_export,
     verify_relocation_group,
     write_relocation,
@@ -241,3 +242,59 @@ def test_recovery_receipt_change_after_inspection_blocks_copy(saved_export):
     with pytest.raises(ValueError, match="receipt changed after inspection"):
         write_relocation(plan)
     assert not args.output.parent.exists()
+
+
+@pytest.mark.parametrize("missing_main", [True, False])
+def test_resume_blocks_lost_rows_before_recomputation(saved_export, missing_main):
+    source, args = saved_export
+    records = read_jsonl(args.annotations)
+    snapshot_export(source, records)
+    if missing_main:
+        source.rename(source.with_suffix(".preserved.jsonl"))
+    else:
+        source.write_bytes(b"")
+    snapshots = {path: path.read_bytes() for path in (source.parent / "recovery").rglob("*")
+                 if path.is_file()}
+    with pytest.raises(ValueError, match="Recovery required"):
+        require_safe_snapshot_resume(source, records)
+    assert all(path.read_bytes() == value for path, value in snapshots.items())
+    assert not args.output.parent.exists()
+
+
+def test_resume_accepts_intact_export_with_same_snapshot(saved_export):
+    source, args = saved_export
+    records = read_jsonl(args.annotations)
+    snapshot_export(source, records)
+    original = source.read_bytes()
+    require_safe_snapshot_resume(source, records)
+    assert source.read_bytes() == original
+
+
+@pytest.mark.parametrize("change", ["snapshot", "manifest", "prediction", "newline", "count"])
+def test_resume_refuses_changed_recovery_or_main(saved_export, change):
+    source, args = saved_export
+    records = read_jsonl(args.annotations)
+    snapshot_export(source, records)
+    if change == "snapshot":
+        (source.parent / "recovery/m2_0001/m2.jsonl").write_bytes(b"{}\n")
+    elif change == "manifest":
+        source.with_suffix(".jsonl.manifest.json").write_text("{}")
+    elif change == "prediction":
+        row = read_jsonl(source)[0]
+        row["latency_seconds"] += 1
+        source.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    elif change == "count":
+        path = source.parent / "recovery/m2_0001/snapshot.json"
+        receipt = json.loads(path.read_text("utf-8"))
+        receipt["predictions"] = 2
+        path.write_text(json.dumps(receipt), encoding="utf-8")
+    else:
+        source.write_bytes(source.read_bytes().rstrip(b"\n"))
+    with pytest.raises(ValueError, match="changed|differ|conflicts|incomplete"):
+        require_safe_snapshot_resume(source, records)
+
+
+def test_no_snapshot_leaves_new_export_untouched(tmp_path):
+    source = tmp_path / "not_created" / "m2.jsonl"
+    require_safe_snapshot_resume(source, [])
+    assert not source.parent.exists()

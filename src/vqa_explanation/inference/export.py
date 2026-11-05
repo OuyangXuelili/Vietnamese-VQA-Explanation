@@ -11,10 +11,11 @@ from pathlib import Path
 from typing import Any
 
 from vqa_explanation.evaluation.answer_metrics import normalize_answer
-from vqa_explanation.evaluation.comparison import EXPERIMENT_IDS
+from vqa_explanation.evaluation.comparison import SUPPORTED_EXPERIMENT_IDS
 from vqa_explanation.inference.prompting import parse_prediction
 from vqa_explanation.inference.qwen25_vl import Qwen25VLRunner
 from vqa_explanation.utils.environment import project_root
+from vqa_explanation.utils.model_loading import validate_loading_profile
 from vqa_explanation.utils.run_provenance import sha256_file
 
 
@@ -31,9 +32,11 @@ def export_inputs(args, records: list[dict], image_hashes: dict[str, str]) -> di
     source_files = [
         "scripts/run_m0.py", "pyproject.toml",
         "src/vqa_explanation/inference/export.py",
+        "src/vqa_explanation/inference/generation_safety.py",
         "src/vqa_explanation/inference/prompting.py",
         "src/vqa_explanation/inference/qwen25_vl.py",
         "src/vqa_explanation/training/sft.py",
+        "src/vqa_explanation/utils/model_loading.py",
     ]
     versions = {}
     for name in ("torch", "transformers", "peft", "bitsandbytes", "pillow"):
@@ -57,6 +60,13 @@ def export_inputs(args, records: list[dict], image_hashes: dict[str, str]) -> di
         "python": platform.python_version(), "versions": versions,
     }
     context = getattr(args, "export_context", None)
+    profile_path = getattr(args, "loading_profile", None)
+    if profile_path is not None:
+        import yaml
+
+        inputs["loading_profile"] = validate_loading_profile(
+            yaml.safe_load(Path(profile_path).read_text("utf-8")))
+        inputs["loading_profile_sha256"] = sha256_file(Path(profile_path))
     if context is not None:
         inputs["context"] = context
     return inputs
@@ -161,8 +171,10 @@ def export_predictions(args, *, runner_factory=None, input_builder=None) -> None
         raise SystemExit("Require 0 < min_pixels <= max_pixels and max_new_tokens > 0")
     if args.output.exists() and not resume:
         raise SystemExit(f"Output exists; choose a new path: {args.output}")
-    if args.experiment_id not in EXPERIMENT_IDS:
+    if args.experiment_id not in SUPPORTED_EXPERIMENT_IDS:
         raise SystemExit(f"Unknown experiment: {args.experiment_id!r}")
+    if args.experiment_id == "M4_DPO_ANSWER" and args.split != "validation":
+        raise SystemExit("M4 is validation-only until its confirmation protocol is declared")
     if args.adapter and args.experiment_id == "M0_PRETRAINED":
         raise SystemExit("An adapter run must have a distinct --experiment-id")
     if not args.adapter and args.experiment_id != "M0_PRETRAINED":
@@ -209,6 +221,9 @@ def export_predictions(args, *, runner_factory=None, input_builder=None) -> None
     except (ValueError, KeyError, TypeError) as error:
         raise SystemExit(str(error)) from error
 
+    loading = {}
+    if inputs.get("loading_profile") is not None:
+        loading["loading_profile"] = inputs["loading_profile"]
     runner = runner_factory(
         args.model_id,
         args.revision,
@@ -216,6 +231,7 @@ def export_predictions(args, *, runner_factory=None, input_builder=None) -> None
         adapter_path=str(args.adapter) if args.adapter else None,
         max_pixels=args.max_pixels,
         min_pixels=args.min_pixels,
+        **loading,
     )
     protocol = runner.protocol_metadata(args.max_new_tokens)
     if manifest and manifest["protocol"] != protocol:

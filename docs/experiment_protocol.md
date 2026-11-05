@@ -6,7 +6,8 @@ bộ preference chính 1.000 cặp qua kiểm thị giác, ba epoch, ba seed.
 M3 đều hoàn tất ba epoch; đã có validation đủ bốn nhánh và đối chứng đổi ảnh.
 Seed 43 đã train xong và có bảng validation/BERTScore/CI kiểm độc lập.
 Seed 44 đã hoàn tất train và đánh giá; bảng ba seed đã kiểm ngày 20/10;
-test và chấm chất lượng theo ảnh chưa hoàn tất.
+test đủ tám identity cùng EM/F1/ROUGE-L/BERTScore và CI đã hoàn tất ngày
+31/10. Chấm chất lượng theo ảnh bởi người vẫn chưa hoàn tất.
 Phần matched-LR/186 cặp bên dưới là giao thức lượt trước; giữ để truy vết,
 không dùng làm cấu hình thực thi của nghiên cứu chính mới.
 

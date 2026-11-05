@@ -14,7 +14,7 @@ def environment_python(directory):
 
 
 def prepare_environment(project_dir, environment_dir, *, profile="preference", runner=run_command):
-    if profile not in {"preference", "semantic"}:
+    if profile not in {"preference", "semantic", "demo"}:
         raise ValueError("Unknown cloud environment profile")
     project_dir = Path(project_dir).resolve()
     environment_dir = Path(environment_dir)

@@ -1,0 +1,3 @@
+dtype: float32
+double_quant: false
+attention: sdpa

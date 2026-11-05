@@ -79,6 +79,9 @@ def valid_jpeg(path: str | Path) -> bool:
             if image.format != "JPEG":
                 return False
             image.verify()
+        # JPEG verify() checks headers; decoding also detects truncated scan data.
+        with Image.open(source) as image:
+            image.load()
     except (OSError, ValueError):
         return False
     return True

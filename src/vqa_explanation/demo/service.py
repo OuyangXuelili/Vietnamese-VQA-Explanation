@@ -13,8 +13,10 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from vqa_explanation.data.io import read_jsonl
 from vqa_explanation.inference.export import validate_saved_predictions
+from vqa_explanation.inference.generation_safety import NumericalInferenceError
 from vqa_explanation.inference.prompting import parse_prediction
 from vqa_explanation.training.preference_data import adapter_fingerprint
+from vqa_explanation.utils.model_loading import validate_loading_profile
 from vqa_explanation.utils.run_provenance import sha256_file
 
 MAX_IMAGE_BYTES = 6 * 1024 * 1024
@@ -181,6 +183,12 @@ class LiveService:
                               parsed.explanation, raw, parsed.format_valid,
                               round(time.perf_counter() - start, 3),
                               "Mô hình có thể sai; giải thích không phải kiểm chứng độc lập.")
+        except NumericalInferenceError as error:
+            raise DemoError(
+                "Mô hình gặp lỗi số học (NaN/Inf), không thể trả lời ảnh này. "
+                "Hãy thử ảnh khác; nếu lỗi tiếp diễn, kiểm tra phiên GPU và báo người vận hành.",
+                503,
+            ) from error
         finally:
             self.lock.release()
 
@@ -205,20 +213,35 @@ def load_live_service(adapter: Path, selection_path: Path, validation_manifest: 
 
     if not torch.cuda.is_available():
         raise RuntimeError("Live demo requires a CUDA GPU; use replay on this machine")
+    if protocol.get("compute_dtype") not in {"torch.float16", "torch.bfloat16", "torch.float32"}:
+        raise ValueError("Selected validation manifest needs an explicit compute_dtype")
+    profile = validate_loading_profile(protocol.get("model_loading", {
+        "dtype": protocol["compute_dtype"].removeprefix("torch."),
+        "double_quant": False, "attention": "sdpa",
+    }))
+    if "torch." + profile["dtype"] != protocol["compute_dtype"]:
+        raise ValueError("Selected model_loading differs from validation compute_dtype")
     from vqa_explanation.inference.qwen25_vl import Qwen25VLRunner
 
     runner = Qwen25VLRunner(
         selection["model_id"], selection["model_revision"], adapter_path=str(adapter),
         min_pixels=protocol["min_pixels"], max_pixels=protocol["max_pixels"],
         load_in_4bit=protocol["load_in_4bit"],
+        loading_profile=profile,
     )
     if any(str(device) in {"cpu", "disk"} for device in runner.model.hf_device_map.values()):
         raise RuntimeError("GPU memory is insufficient; CPU/disk offload is disabled for the demo")
     actual = runner.protocol_metadata(protocol["max_new_tokens"])
     for key in ("min_pixels", "max_pixels", "max_new_tokens", "load_in_4bit", "prompt_sha256",
-                "generation_config"):
-        if actual[key] != protocol[key]:
+                "generation_config", "compute_dtype"):
+        if actual.get(key) != protocol[key]:
             raise ValueError(f"Live inference protocol changed: {key}")
+    if "model_loading" in protocol and actual.get("model_loading") != protocol["model_loading"]:
+        raise ValueError("Live inference protocol changed: model_loading")
+    if ("image_processor_sha256" in protocol
+            and actual.get("image_processor_sha256") != protocol["image_processor_sha256"]):
+        raise ValueError("Live inference protocol changed: image_processor_sha256")
     return LiveService(runner, {"experiment_id": "M1_SFT", "model_id": selection["model_id"],
-                               "model_revision": selection["model_revision"]},
+                               "model_revision": selection["model_revision"],
+                               "adapter_sha256": selection["adapter"]["sha256"]},
                        max_new_tokens=protocol["max_new_tokens"])

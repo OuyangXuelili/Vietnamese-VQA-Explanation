@@ -1,44 +1,107 @@
 <!doctype html>
 <html lang="vi">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>VQA · Hỏi đáp hình ảnh</title>
-  <link rel="stylesheet" href="assets/demo.css"><script src="assets/demo.js" defer></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Hỏi đáp hình ảnh bằng tiếng Việt, với đáp án và lời giải thích từ mô hình M1.">
+  <title>VQA — Hỏi đáp hình ảnh</title>
+  <link rel="stylesheet" href="assets/demo.css">
+  <script src="assets/demo.js" defer></script>
 </head>
 <body>
-<main>
-  <header><a class="brand" href="./">VQA<span> / tiếng Việt</span></a>
-    <span class="badge" id="mode">Đang kết nối</span></header>
-  <section class="intro"><p class="eyebrow">ẢNH · CÂU HỎI · GIẢI THÍCH</p>
-    <h1>Nhìn ảnh.<br>Hiểu câu trả lời.</h1>
-    <p class="lede">Hỏi đáp hình ảnh tiếng Việt với lời giải thích dựa trên nội dung ảnh.</p>
-    <p class="notice" id="notice" role="status">Đang kiểm tra backend…</p></section>
-  <section class="workspace">
-    <div class="visual-panel">
-      <div class="section-head"><h2>01 / Hình ảnh</h2><span id="image-meta">Chưa có ảnh</span></div>
-      <div class="image-stage"><img id="preview" alt="Ảnh dùng cho câu hỏi" hidden>
-        <div id="placeholder"><span class="image-symbol">▧</span><p>Chọn một ảnh để bắt đầu</p></div></div>
-      <label class="file-label" id="upload-label" hidden>Chọn ảnh JPEG / PNG
-        <input id="upload" type="file" accept="image/jpeg,image/png"></label>
-      <div id="replay-controls" hidden><label for="examples">Ví dụ validation đã lưu</label>
-        <select id="examples" aria-label="Chọn ví dụ validation"></select>
-        <p class="small">12 ảnh khác nhau, lấy theo ID. Không phải bộ ví dụ chỉ chọn câu trả lời đúng.</p></div>
+  <svg class="icon-library" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m3 16 5-5 5 5 3-3 5 5"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/></symbol>
+    <symbol id="i-message" viewBox="0 0 24 24"><path d="M20 15a3 3 0 0 1-3 3H9l-5 3V6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3Z"/><path d="M8 8h8M8 12h5"/></symbol>
+  </svg>
+
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="VQA — Trang chủ">
+      <span class="brand-mark"><svg><use href="#i-image"/></svg></span>
+      <span>VQA<span class="brand-caption">Thị giác &amp; Ngôn ngữ</span></span>
+    </a>
+    <nav class="top-actions" aria-label="Thông tin demo">
+      <span class="connection" id="connection" data-state="connecting"><span class="status-dot"></span><span id="mode">Đang kết nối</span></span>
+      <button class="icon-button help-button" id="help" aria-label="Hướng dẫn sử dụng" title="Hướng dẫn sử dụng"><svg><use href="#i-info"/></svg></button>
+    </nav>
+  </header>
+
+  <main class="app-shell" id="workspace">
+    <section class="page-heading" aria-labelledby="page-title">
+      <div><p class="eyebrow">VIETNAMESE VQA EXPLANATION</p><h1 id="page-title">Hỏi đáp hình ảnh tiếng Việt</h1>
+        <p class="page-description">Tải ảnh, đặt câu hỏi và xem lời giải thích của mô hình.</p></div>
+      <span class="model-chip"><span class="model-dot"></span>M1 <span class="chip-divider">/</span> Qwen2.5-VL · 3B</span>
+    </section>
+    <div class="connection-note" id="connection-note" hidden><span id="notice" role="status">Đang kiểm tra kết nối…</span><button class="text-button" id="reconnect" hidden>Kiểm tra lại</button></div>
+
+    <div class="workspace-grid">
+      <section class="panel image-panel" aria-labelledby="image-title">
+        <div class="panel-heading"><div class="panel-title"><span class="step">01</span><h2 id="image-title">Ảnh đầu vào</h2></div><span class="subtle" id="image-meta">Chưa chọn ảnh</span></div>
+        <div id="drop-zone" class="drop-zone" aria-label="Khu vực ảnh đầu vào">
+          <button class="preview-button" id="zoom-image" aria-label="Phóng to ảnh" disabled>
+            <img id="preview" alt="Ảnh dùng cho câu hỏi" hidden>
+            <span class="expand-hint" id="expand-hint" hidden><svg><use href="#i-expand"/></svg>Phóng to ảnh</span>
+          </button>
+          <div class="upload-empty" id="placeholder">
+            <div class="image-illustration" aria-hidden="true"><span class="illustration-back"></span><svg><use href="#i-image"/></svg><span class="illustration-add">+</span></div>
+            <h3>Bắt đầu từ một bức ảnh</h3><p>Kéo ảnh vào đây hoặc chọn từ thiết bị</p>
+            <span class="format-hint">JPG, PNG · Tối đa 6 MB</span>
+          </div>
+          <span class="drop-overlay" id="drop-overlay" hidden>Thả ảnh để thay thế</span>
+        </div>
+        <div id="upload-label" class="upload-controls" hidden>
+          <input class="sr-only" id="upload" type="file" accept="image/jpeg,image/png" aria-label="Chọn ảnh JPEG hoặc PNG" aria-describedby="upload-note" tabindex="-1">
+          <button class="secondary-button" id="choose-image"><svg><use href="#i-upload"/></svg><span id="choose-label">Chọn ảnh</span></button>
+          <button class="icon-button" id="remove-image" aria-label="Bỏ ảnh đã chọn" title="Bỏ ảnh đã chọn" disabled><svg><use href="#i-close"/></svg></button>
+          <p id="upload-note">Hoặc dán ảnh bằng Ctrl+V</p>
+        </div>
+        <div id="file-details" class="file-details" hidden><svg><use href="#i-image"/></svg><span id="file-name"></span><span id="file-size"></span></div>
+        <div id="replay-controls" class="replay-controls" hidden><label for="examples">Chọn ví dụ validation</label>
+          <select id="examples" aria-label="Chọn ví dụ validation"></select><p class="subtle">Kết quả đã lưu, không suy luận ảnh mới.</p></div>
+        <div class="privacy-note"><svg><use href="#i-shield"/></svg><p>Ảnh chỉ gửi khi bạn đặt câu hỏi.<br><span>Không lưu ảnh tải lên vào dự án.</span></p></div>
+      </section>
+
+      <div class="interaction-column">
+        <section class="panel question-panel" aria-labelledby="question-title">
+          <div class="panel-heading"><div class="panel-title"><span class="step">02</span><h2 id="question-title">Bạn muốn hỏi điều gì?</h2></div><span class="subtle">Tiếng Việt</span></div>
+          <label class="sr-only" for="question">Câu hỏi tiếng Việt</label>
+          <div class="composer"><textarea id="question" maxlength="500" rows="3" placeholder="Ví dụ: Người trong ảnh đang làm gì?" aria-describedby="question-hint" disabled></textarea><span class="character-count" id="character-count">0 / 500</span></div>
+          <div id="suggestions" class="suggestions" aria-label="Gợi ý câu hỏi" hidden>
+            <button class="suggestion" id="suggest-object">Đối tượng chính là gì?</button>
+            <button class="suggestion" id="suggest-place">Ảnh được chụp ở đâu?</button>
+            <button class="suggestion" id="suggest-action">Có hoạt động gì?</button>
+          </div>
+          <div class="submit-row"><span id="question-hint" class="subtle">Chọn ảnh để bắt đầu</span><button class="primary-button" id="ask" disabled><span id="ask-label">Gửi câu hỏi</span><svg><use href="#i-arrow"/></svg></button></div>
+          <p id="error" class="error-message" role="alert" hidden></p>
+        </section>
+
+        <section class="panel result-panel" id="result-panel" aria-labelledby="result-title" aria-busy="false">
+          <span id="result-announcement" class="sr-only" role="status"></span>
+          <div class="panel-heading"><div class="panel-title"><span class="step">03</span><h2 id="result-title">Câu trả lời</h2></div><span class="latency" id="latency">Chưa có kết quả</span></div>
+          <div class="result-empty" id="result-empty"><span class="empty-message-icon"><svg><use href="#i-message"/></svg></span><h3>Đáp án sẽ xuất hiện ở đây</h3><p>Chọn ảnh và gửi câu hỏi để bắt đầu.</p></div>
+          <div class="loading-state" id="loading" role="status" hidden><span class="spinner"></span><div><strong>Đang chờ mô hình trả lời</strong><p>Giữ nguyên trang. Không cần gửi lại câu hỏi.</p></div></div>
+          <div id="result-content" hidden>
+            <div class="answer-card"><p class="answer-label">ĐÁP ÁN</p><p id="answer">—</p></div>
+            <div class="explanation-card"><h3>Lời giải thích</h3><p id="explanation"></p></div>
+            <div class="result-actions"><span class="result-source" id="result-source">M1 · Suy luận trực tiếp</span><button class="text-button copy-button" id="copy-result" disabled><svg><use href="#i-copy"/></svg><span id="copy-label">Sao chép</span></button></div>
+            <p class="result-warning" id="warning">Mô hình có thể sai. Hãy đối chiếu lời giải thích với ảnh.</p>
+            <details class="technical-details"><summary>Thông tin mô hình &amp; đầu ra gốc</summary><p id="identity" class="identity"></p><pre id="raw"></pre></details>
+          </div>
+        </section>
+
+        <section class="history-section" id="history-section" aria-labelledby="history-title" hidden><div class="history-heading"><h2 id="history-title">Câu hỏi với ảnh này</h2><span class="subtle">Chỉ lưu tạm trong phiên</span></div><div id="history-list" class="history-list"></div></section>
+      </div>
     </div>
-    <div class="qa-panel">
-      <div class="section-head"><h2>02 / Câu hỏi</h2><span>M1 · SFT</span></div>
-      <label class="sr-only" for="question">Câu hỏi tiếng Việt</label>
-      <textarea id="question" maxlength="500" rows="3" placeholder="Bạn muốn hỏi điều gì về ảnh?" disabled></textarea>
-      <button id="ask" disabled>Hỏi về ảnh <span>↗</span></button>
-      <p id="error" role="alert" hidden></p>
-      <div class="result-head"><h2>03 / Kết quả</h2><span id="latency">Chưa có kết quả</span></div>
-      <section class="answer-card"><p class="eyebrow">ĐÁP ÁN</p><p id="answer">—</p></section>
-      <section class="explanation-card"><p class="eyebrow">GIẢI THÍCH</p>
-        <p id="explanation">Kết quả sẽ hiển thị ở đây.</p></section>
-      <p class="small" id="warning">Giải thích là đầu ra của mô hình, không phải bằng chứng kiểm chứng độc lập.</p>
-      <details><summary>Đầu ra gốc và thông tin mô hình</summary><pre id="raw"></pre>
-        <p id="identity" class="small"></p></details>
-    </div>
-  </section>
-  <footer><span>Nghiên cứu VQA có lời giải thích</span><span>Không lưu ảnh tải lên vào dự án.</span></footer>
-</main>
-</body></html>
+    <footer><span>Vietnamese VQA Explanation <span class="footer-divider">/</span> Demo nghiên cứu</span><span>Đáp án và giải thích được sinh bởi mô hình, không phải kết quả kiểm chứng.</span></footer>
+  </main>
+
+  <dialog class="image-dialog" id="image-dialog" aria-label="Ảnh phóng to"><div class="dialog-toolbar"><span>Ảnh đầu vào</span><button class="icon-button" id="close-image" aria-label="Đóng ảnh phóng to"><svg><use href="#i-close"/></svg></button></div><img id="large-preview" alt="Ảnh đầu vào phóng to"></dialog>
+  <dialog class="help-dialog" id="help-dialog" aria-labelledby="help-title"><div class="dialog-toolbar"><h2 id="help-title">Sử dụng demo</h2><button class="icon-button" id="close-help" aria-label="Đóng hướng dẫn"><svg><use href="#i-close"/></svg></button></div><ol><li><strong>Chọn ảnh</strong><p>Kéo-thả, dán hoặc tải một ảnh JPG/PNG, tối đa 6 MB.</p></li><li><strong>Đặt câu hỏi tiếng Việt</strong><p>Hỏi rõ một chi tiết nhìn thấy trong ảnh. Ctrl+Enter để gửi nhanh.</p></li><li><strong>Đọc đáp án và giải thích</strong><p>Đối chiếu với ảnh; mô hình có thể trả lời sai hoặc nêu chi tiết không có thật.</p></li></ol><div class="help-note">Chế độ trực tiếp cần backend GPU đang kết nối. Bản xem lại chỉ hiển thị ví dụ validation đã lưu. Lịch sử câu hỏi không được ghi vào dữ liệu train.</div></dialog>
+</body>
+</html>

@@ -8,12 +8,14 @@ import sys
 from vqa_explanation.utils.environment import project_root
 
 
-def commands(with_data: bool, full_data: bool) -> list[list[str]]:
+def commands(with_data: bool, full_data: bool, *, source_only: bool = False) -> list[list[str]]:
     root = project_root()
     checks = [
         [sys.executable, "-m", "ruff", "check", "."],
-        [sys.executable, "-m", "pytest", "-q"],
+        [sys.executable, "-m", "pytest", "--fail-on-skip"],
     ]
+    if source_only:
+        checks[1].extend(["-m", "not historical"])
     if with_data or full_data:
         environment = (
             "configs/environments/local_full.yaml"
@@ -34,10 +36,12 @@ def main() -> int:
     parser.add_argument("--with-data", action="store_true", help="Audit/preflight smoke data")
     parser.add_argument("--full-data", action="store_true", help="Audit/preflight full data")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--source-only", action="store_true",
+                        help="Exclude tests requiring historical artifacts outside Git")
     args = parser.parse_args()
     if args.with_data and args.full_data:
         parser.error("Choose either --with-data or --full-data")
-    checks = commands(args.with_data, args.full_data)
+    checks = commands(args.with_data, args.full_data, source_only=args.source_only)
     if args.dry_run:
         print(json.dumps(checks, ensure_ascii=False, indent=2))
         return 0

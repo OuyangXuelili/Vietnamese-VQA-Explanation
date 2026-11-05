@@ -100,7 +100,8 @@ def validate_dataset_lock(record, project_dir, preferences):
 def load_launch(path, project_dir):
     record = json.loads(path.read_text(encoding="utf-8"))
     if (record.get("schema") != "preference_training_launch_v1"
-            or record.get("scope") != "main_preference_experiment"):
+            or record.get("scope") not in {
+                "main_preference_experiment", "answer_preservation_experiment"}):
         raise ValueError("Use a main preference launch record, not an abandoned pilot")
     if record.get("data_locked") is not True:
         return record, None
@@ -124,7 +125,7 @@ def load_launch(path, project_dir):
 
 def prepare_launch(launch_path, project_dir, arm, mode,
                    output_dir=None, gpu_gate=None, resume=None):
-    if arm not in {"m2", "m3"} or mode not in {"inspect", "gate", "train"}:
+    if arm not in {"m2", "m3", "m4"} or mode not in {"inspect", "gate", "train"}:
         raise ValueError("Unknown preference arm or execution mode")
     if mode == "inspect" and resume is not None:
         raise ValueError("Resume requires a training mode")
@@ -137,7 +138,7 @@ def prepare_launch(launch_path, project_dir, arm, mode,
             or paths["study_config"].stem == "preference_study_lr5e6"):
         sensitivity = validate_sensitivity_launch(record, project_dir, paths["study_config"])
     decision_hash = validate_dataset_lock(record, project_dir, paths["preferences"])
-    config_key = "m2_config" if arm == "m2" else "m3_config"
+    config_key = f"{arm}_config"
     relative = record.get(config_key)
     if not isinstance(relative, str) or not relative.strip():
         raise ValueError(f"Launch needs {config_key}")
@@ -149,6 +150,10 @@ def prepare_launch(launch_path, project_dir, arm, mode,
         gpu_gate=gpu_gate, resume_from_checkpoint=resume, stop_after_step=None,
     )
     plan = prepare_stage(args)[2]
+    if plan.get("comparison_protocol", {}).get("arm") != arm:
+        raise ValueError("Launch arm differs from the declared study config")
+    if arm == "m4" and record["scope"] != "answer_preservation_experiment":
+        raise ValueError("M4 requires a separate answer-preservation launch")
     if plan["pairs"] != record["expected_pairs"]:
         raise ValueError("Launch N differs from both config and frozen dataset")
     if mode != "inspect" and output_dir is None:
@@ -161,7 +166,7 @@ def prepare_launch(launch_path, project_dir, arm, mode,
 
 def stage_output(run_folder, arm, mode, attempt="initial"):
     """Separate resumed output from the original run and its GPU gate."""
-    if arm not in {"m2", "m3"} or mode not in {"inspect", "gate", "train"}:
+    if arm not in {"m2", "m3", "m4"} or mode not in {"inspect", "gate", "train"}:
         raise ValueError("Unknown preference arm or execution mode")
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}", attempt):
         raise ValueError("Use a short attempt label without path separators")

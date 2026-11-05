@@ -1,0 +1,23 @@
+min_pixels: 200704
+max_pixels: 200704
+max_new_tokens: 8
+profiles:
+  legacy_fp16: configs/inference/legacy_fp16.yaml
+  matched_fp16: configs/inference/matched_fp16.yaml
+  diagnostic_fp32: configs/inference/diagnostic_fp32.yaml
+cases:
+  - name: control_before
+    role: control
+    question_id: '109797000'
+  - name: known_nan
+    role: regression
+    question_id: '429761001'
+  - name: control_after
+    role: control
+    question_id: '109797000'
+  - name: second_control
+    role: control
+    question_id: '109907008'
+  - name: third_control
+    role: control
+    question_id: '110196002'

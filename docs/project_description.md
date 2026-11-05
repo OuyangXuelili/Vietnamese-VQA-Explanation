@@ -1,6 +1,6 @@
 # Hỏi đáp hình ảnh tiếng Việt có lời giải thích
 
-Cập nhật 20/10/2026. Thiết kế và các bước còn lại ở [kế hoạch](research_plan.md).
+Cập nhật 1/11/2026. Thiết kế và các bước còn lại ở [kế hoạch](research_plan.md).
 
 ## Bài toán
 
@@ -44,10 +44,10 @@ revision `66285546d2b821cf421d4f5eb2576359d3770cd3`.
 
 | Nhánh | Cách học | Trạng thái |
 |---|---|---|
-| M0 | Mô hình gốc, không train | Đủ validation |
+| M0 | Mô hình gốc, không train | Đủ validation và test |
 | M1 | SFT đáp án/giải thích trên toàn train | Một epoch; đã chọn checkpoint-3683 |
-| M2 | Từ M1, SFT trên chosen | Cả ba seed train xong và đủ bảng validation |
-| M3 | Từ cùng M1, DPO trên chosen/rejected | Cả ba seed train xong và đủ bảng validation |
+| M2 | Từ M1, SFT trên chosen | Cả ba seed đủ train, validation và test |
+| M3 | Từ cùng M1, DPO trên chosen/rejected | Cả ba seed đủ train, validation và test |
 
 SFT tính loss trên completion, mask phần prompt/ảnh. QLoRA giữ backbone
 4-bit, học adapter rank 16, alpha 32 trên q/k/v/o projections. DPO dùng
@@ -59,7 +59,7 @@ Cả hai dùng LR 1e-5, ba epoch / 375 update, batch hiệu dụng 8; M3 beta 0,
 DPO giữ ảnh ở cả policy và reference. Đầu vào vượt giới hạn 1.536 token
 bị từ chối, không cắt ảnh hoặc phần trả lời. T4 dùng FP16.
 
-Kế hoạch lặp M2/M3 với các seed 42, 43, 44 để đo mức dao động kết quả.
+M2/M3 đã lặp với các seed 42, 43, 44 để đo mức dao động kết quả.
 Mỗi lượt bắt đầu độc lập từ cùng trọng số M1, không học tiếp lượt seed
 trước. Dropout được tắt; seed chủ yếu điều khiển thứ tự xáo trộn dữ liệu.
 Seed 42/43/44 đã train và đánh giá validation xong. Đây là hai phương pháp chạy
@@ -87,7 +87,7 @@ Bảng dùng đủ 1.407 câu trên 1.383 ảnh validation, chỉ số nhân 100
 Báo cáo `reports/generated/m0_m1_validation_20261011/` trong kho kết quả có
 CI theo ảnh và 24 ví dụ chọn theo quy tắc. EM dùng một đáp án sau chuẩn hóa, không
 phải VQA consensus accuracy. F1 tách khoảng trắng; ROUGE/BERTScore đo giống
-văn bản. Chưa có test hoặc chấm người.
+văn bản. Bảng test cuối trình bày ở dưới; chấm bởi người chưa hoàn tất.
 
 ## Validation bản chính — seed 42
 
@@ -109,7 +109,7 @@ Bảng đầy đủ, CI và 32 ví dụ ở
 Đối chứng đổi ảnh seed 42 đã xong: EM M1 giảm 68 → 16,5; M2 giảm 69,5 →
 17,5; M3 giảm 69 → 17,5 trên 200 ảnh validation. Chưa thấy lợi thế M3 so
 với M2 về mức giảm EM. Phép đo này không thay chấm chất lượng giải thích
-theo ảnh. Test và chấm mù chưa hoàn tất.
+theo ảnh. Test tự động đã đủ; chấm mù bởi người chưa hoàn tất.
 
 Selection: `artifacts/colab_history/20261007/m1_selection_frozen_v2/selection.json`.
 Run cuối: `runs/m1/sft-full_20261007_023531_870900`.
@@ -155,8 +155,82 @@ trung bình các khoảng tin cậy.
 
 Kết quả ở `reports/generated/preference_validation_seed44_20261020/` và
 `reports/generated/preference_validation_three_seeds_20261020/`.
-Bước tiếp theo là đối chứng LR 5e-6 cho cả hai nhánh theo kế hoạch, sau đó
-khóa thiết kế trước khi mở test và chấm mù.
+
+### Đối chứng learning rate — seed 42
+
+Ngày 23/10 đã kiểm độc lập file prediction/manifest, train report/state và
+ảnh thật. Hai nhánh chỉ đổi LR từ 1e-5 xuống 5e-6; cùng M1, bộ 1.000 cặp,
+ba epoch / 375 update và giao thức suy luận. M0/M1 dùng lại không đổi nội dung.
+
+| Nhánh, LR 5e-6 | EM | Token-F1 | ROUGE-L | BERTScore F1 |
+|---|---:|---:|---:|---:|
+| M2 | 70,29 | 74,74 | 32,28 | 77,16 |
+| M3 | 71,07 | 75,40 | 41,78 | 81,65 |
+
+M3 so với LR chính tăng EM 1,56 điểm %, CI 95% [+0,21; +2,93], và
+ROUGE-L 5,33 điểm, CI [+4,67; +5,99]. Đây là CI theo ảnh của một seed,
+không thay biến thiên giữa các lần train. ROUGE-L vẫn thấp hơn M1 (44,29),
+chưa chứng minh cải thiện giải thích theo ảnh.
+
+BERTScore LR đã chạy trên T4 và kiểm độc lập đủ 1.407 câu mỗi nhánh.
+M3−M2 +4,49 điểm, CI [+4,23; +4,74]; M3−M1 −0,82 điểm,
+CI [−1,08; −0,60]. M3 ở LR 5e-6 tăng 1,91 điểm so với LR 1e-5,
+CI [+1,69; +2,12], nhưng vẫn dưới M1.
+Bảng đầy đủ ở `reports/generated/preference_lr_sensitivity_semantic_20261023/`.
+Giữ LR 1e-5 cho nghiên cứu ba seed; đối chứng một seed không thay thiết kế
+chính. Bảng test chính vẫn dùng LR 1e-5, không chọn lại theo điểm test.
+
+## Phân tích lỗi validation
+
+Đã đối chiếu đủ 1.407 câu / 1.383 ảnh ở cả ba seed, kèm từng đáp án,
+giải thích và output gốc. M0/M1 là hai baseline cố định; sáu run M2/M3
+được giữ riêng. Bảng tổng hợp khớp kết quả ba seed đã báo trước đó.
+
+| Seed | M3 khớp thêm so với M2 | M3 mất khớp so với M2 |
+|---|---:|---:|
+| 42 | 72 | 75 |
+| 43 | 71 | 73 |
+| 44 | 75 | 82 |
+
+Các cột dùng EM theo đáp án tham chiếu, chưa phải nhãn đúng/sai theo ảnh.
+M3 tăng tương đồng giải thích nhưng vẫn mất khớp nhiều câu hơn số câu
+khớp thêm. Không đủ cơ sở kết luận DPO cải thiện toàn hệ thống.
+
+Phân nhóm câu hỏi bằng quy tắc văn bản và phân nhóm độ dài lời giải thích
+tham chiếu chỉ để tìm lỗi. Nhóm màu sắc 11 câu, số lượng 2 câu và vị trí
+26 câu quá nhỏ để kết luận rộng. Không chọn nhóm thuận lợi làm kết quả chính.
+Độ ổn định đáp án qua ba seed cũng không đồng nghĩa với đáp án đúng:
+M3 có 1.357 câu cùng đáp án chuẩn hóa; trong số đó 396 câu đều không khớp
+EM. Tổng số câu không khớp EM ở cả ba seed là 419, gồm cả các câu có đáp
+án khác nhau giữa các lần chạy.
+
+[Báo cáo, CSV và biểu đồ](../reports/generated/validation_diagnostics_20261027/README.md)
+đi cùng [trang đối chiếu](../reports/generated/validation_diagnostics_20261027/index.html).
+Trang hiển thị toàn bộ ảnh/output để kiểm tra, không sửa prediction, tạo
+nhãn hỗ trợ ảnh hoặc thay thế chấm mù. Kết quả sinh riêng ngoài Git.
+
+## Kết quả test cuối
+
+Đủ tám identity, mỗi lượt 1.968 câu / 1.921 ảnh. M0/M1 là baseline cố định;
+M2/M3 là mean ± độ lệch chuẩn mẫu qua ba seed. Tất cả điểm nhân 100.
+
+| Nhánh | EM | Token-F1 | ROUGE-L | BERTScore F1 |
+|---|---:|---:|---:|---:|
+| M0 | 41,36 | 53,16 | 27,74 | 75,92 |
+| M1 | 70,17 | 75,21 | 44,52 | 82,48 |
+| M2 | 70,33 ± 0,44 | 75,36 ± 0,40 | 30,42 ± 0,10 | 76,58 ± 0,04 |
+| M3 | 67,72 ± 0,36 | 73,11 ± 0,31 | 35,47 ± 1,31 | 79,17 ± 0,45 |
+
+M3−M2 tăng BERTScore 2,60 và ROUGE-L 5,06 điểm, nhưng giảm EM 2,61 điểm.
+Chênh lệch tính từ điểm chưa làm tròn. M1 vẫn có tương đồng giải thích cao
+hơn hai nhánh bổ sung. Chưa có nhãn người để kết luận cải thiện mức hỗ trợ
+theo ảnh. Câu lỗi số học vẫn giữ trong mẫu số và prediction gốc.
+
+[Bản thảo nội dung báo cáo](../reports/thesis/report.md) và
+[bản xem có biểu đồ](../reports/thesis/report.html) đã cập nhật từ các hồ sơ
+đã kiểm. Trạng thái đồng bộ và hash gói báo cáo được ghi ở
+`artifacts/report_update_20261101/`; bảng gốc giữ tại
+`artifacts/final_test_20261031/semantic_recomputed/`.
 
 ## Dữ liệu cặp và đánh giá còn lại
 
@@ -172,11 +246,12 @@ bộ chính hoặc kết quả chấm mù cuối.
 
 Cặp hợp lệ giữ cùng đáp án đúng, chosen có bằng chứng liên quan và rejected
 có vấn đề xác định được theo ảnh. Ghi riêng lỗi mâu thuẫn, chi tiết không
-được hỗ trợ và thiếu liên quan. Nháp AI giữ nguồn AI, không gán tên người;
-xác nhận nguyên văn cũng không đổi tác giả. [Rubric và xuất dữ liệu](preference_annotation.md).
+được hỗ trợ và thiếu liên quan. Giữ nguồn tạo thực tế trong metadata,
+không gán tên người cho quyết định tự động. [Rubric và xuất dữ liệu](preference_annotation.md).
 
-Việc tiếp theo là đối chứng LR đã định, rồi khóa cấu hình trước khi xuất
-test. Chấm mù mẫu đã chọn trước gồm
+Đối chứng LR và test tự động đã hoàn tất. Hướng dẫn đã khóa trước test theo
+amendment 30/10; luyện rubric trên 30 ảnh validation và chấm bởi người còn
+thiếu. Chấm mù mẫu đã chọn trước gồm
 200 ảnh test, một câu/ảnh cho bốn nhánh. Chỉ số chính là hỗ trợ 0–2 M3–M2
 với paired image-bootstrap, 2.000 lần/seed 42. Chỉ số phụ gồm đúng đáp án
 kèm hỗ trợ 2, chi tiết không được ảnh hỗ trợ và uncertain.
@@ -185,9 +260,19 @@ Một người chấm thì không báo agreement hai người. [Giao thức](hum
 ## Demo, đóng góp và giới hạn
 
 FastAPI và HTML/CSS/JS nhận ảnh/câu hỏi, hiển thị đáp án/giải thích. Replay
-đọc đúng output M1 của 12 ảnh validation; live còn cần nghiệm thu GPU.
+đọc output M1 của 12 ảnh validation. Web đã nhận ảnh tải lên và gọi M1
+thật trên T4 với ba ảnh validation ngoài gallery ngày 24/10. Ngày 27/10,
+giao diện mới đã kiểm với M1 và ba ảnh mẫu ngoài kho dữ liệu; thời gian
+hiển thị 2,69–6,21 giây. Sao chép, phóng ảnh, reload và bố cục 390px đã qua
+kiểm thực tế. Đây là nghiệm thu chức năng, chưa phải đánh giá độ chính xác
+hoặc chất lượng giải thích; không coi replay là live.
 Trang duyệt cặp không phải demo. Source dùng lại ở `src`; notebook 04 chỉ
-điều phối M2/M3. Local chuẩn bị/đánh giá, cloud train. [Cách chạy](demo.md).
+điều phối M2/M3. Local chuẩn bị/đánh giá, cloud train. M1 là bản demo hiện
+hành theo kết quả validation; M3 vẫn là nhánh nghiên cứu. [Cách chạy](demo.md).
+Ngày 31/10, bản guard mới đạt kiểm T4 trên M0/M1 và dịch vụ live, gồm chặn
+NaN/Inf, nhả khóa, ba ca validation và nạp lại. Guard chặn lỗi an toàn;
+nguyên nhân số học gốc chưa được sửa. Báo cáo nghiệm thu ở
+`artifacts/gpu_guard_execution_20261031/`.
 
 Đóng góp dự kiến: bộ cặp tiếng Việt có truy vết, đối chứng chosen-SFT/DPO và
 phân tích lỗi theo ảnh. Qwen/LoRA/DPO là phương pháp kế thừa.

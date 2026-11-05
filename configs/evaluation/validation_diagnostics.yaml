@@ -1,0 +1,14 @@
+schema: validation_diagnostics_v1
+seeds:
+  42:
+    evidence: artifacts/preference_v2/validation_seed42_20261016
+    study: configs/experiments/preference_study_v2.yaml
+    semantic: artifacts/preference_v2/validation_seed42_20261016/semantic
+  43:
+    evidence: artifacts/preference_v2/validation_seed43_20261017
+    study: configs/experiments/preference_study_seed43.yaml
+    semantic: artifacts/preference_v2/validation_seed43_20261017/semantic
+  44:
+    evidence: artifacts/preference_v2/validation_seed44_20261020
+    study: configs/experiments/preference_study_seed44.yaml
+    semantic: artifacts/preference_v2/validation_seed44_20261020/semantic

@@ -3,6 +3,19 @@
 Chốt phạm vi ngày 14/10/2026. Đề tài: nghiên cứu cải thiện lời giải thích
 trong hỏi đáp hình ảnh tiếng Việt.
 
+## Trạng thái ngày 1/11/2026
+
+- Sáu lượt train M2/M3, validation, đối chứng đổi ảnh và LR đã hoàn tất.
+- Test đủ tám identity và 15.744 prediction; metric tự động, SD ba seed
+  và CI từng seed đã kiểm lại. Không còn lượt xuất test chính bị thiếu.
+- Demo M1 đã chạy ảnh thật; guard NaN/Inf và nạp lại đã qua T4 ngày 31/10.
+- [Bản thảo báo cáo](../reports/thesis/report.md) tiếp tục cấu trúc cũ,
+  có bảng test, hai biểu đồ và thảo luận. Bản Word theo mẫu trường còn
+  cần hoàn thiện định dạng; chưa thay khung báo cáo bằng một mẫu mới.
+- Phần đánh giá theo ảnh bởi người vẫn thiếu: luyện tiêu chí, chấm gói
+  cố định, tính hỗ trợ và đồng thuận từ nhãn thật. Sau đó bổ sung báo cáo
+  và slide. Hiện chưa cần mở thêm lượt train hoặc backbone.
+
 ## Mục tiêu và phạm vi
 
 Từ cùng checkpoint M1, so sánh SFT bổ sung trên chosen với DPO trên
@@ -120,11 +133,18 @@ ba seed. BERTScore M2/M3: 76,55 ± 0,01 / 79,26 ± 0,54; chênh lệch
 M3−M2 +2,71 ± 0,54 điểm (trung bình ± độ lệch chuẩn mẫu). M3 vẫn thấp
 hơn M1; chưa thấy cải thiện đáp án hoặc bám ảnh. Bảng đã kiểm ở
 `reports/generated/preference_validation_three_seeds_20261020/`.
-Tiếp theo là đối chứng LR đã định dưới đây, không mở grid search mới.
-Ngày 21/10: hai report LR 5e-6 đều `passed`, 375 update / ba epoch;
-M3 hoàn tất ở attempt `m3_train_resume175`. Việc còn lại của đối chứng là
-kiểm độc lập đầy đủ checkpoint cuối M3 và validation. Chưa có căn cứ đổi
-thiết kế chính hoặc tuyên bố LR này tốt hơn.
+Đối chứng LR đã hoàn tất như dưới đây; không mở grid search mới.
+Ngày 22/10: checkpoint cuối LR 5e-6 đã kiểm độc lập; M2/M3 đều `passed`,
+375 update / ba epoch. M3 dùng attempt `m3_train_resume175`. Export validation
+đã hoàn tất đủ 1.407 câu mỗi nhánh, bốn comparison comparable. Ngày 23/10
+đã kiểm độc lập file thật và ảnh, lập bảng/CI. M3 LR thấp đạt EM 71,07,
+ROUGE-L 41,78; tốt hơn M3 LR chính ở seed 42 nhưng vẫn dưới M1 về ROUGE-L.
+BERTScore LR hoàn tất trên T4 ngày 23/10: M2/M3 77,16 / 81,65;
+M3−M2 +4,49 điểm, CI [+4,23; +4,74]. M3 LR thấp vẫn dưới M1 (82,47).
+File thật, giao thức và CI đã kiểm độc lập. Giữ đây là đối chứng một seed,
+không thay thiết kế chính hoặc kết luận về bám ảnh từ tương đồng văn bản.
+Phần đo LR đã đủ; tiếp theo khóa cấu hình, prompt, generation và rubric
+trước khi xuất test. Không mở thêm lượt tìm siêu tham số.
 
 Đây là thiết kế đối chứng có ngân sách, chưa phải bộ siêu tham số tối ưu.
 Với N=1.000: 375 update/nhánh. Báo cả số mẫu duy nhất và số lượt đọc mẫu:
@@ -161,6 +181,26 @@ Không tăng epoch chỉ vì train loss giảm.
    validation trước. Nếu chỉ có một người thì báo đúng một người, không
    tạo agreement hoặc gán quyết định tự động thành nhãn người.
 
+Ngày 23/10 đã tạo bộ luyện rubric riêng gồm 30 ảnh validation / 120 output
+mỗi người, nhãn còn trống. Hồ sơ chuẩn bị test đã đối chiếu đủ tám identity
+và giữ nguyên mẫu 200 ảnh; chưa xuất prediction test. Công cụ và cách lưu
+nhãn ở `docs/human_evaluation.md`. Khóa hướng dẫn trước khi mở test,
+không đổi kế hoạch chính sang run LR thấp vì điểm validation thuận lợi hơn.
+
+Điều chỉnh thứ tự ngày 30/10, trước prediction test: khóa hướng dẫn dựa
+trên rà validation, giữ phần luyện chấm người chưa hoàn tất và thực hiện
+trước khi chấm 200 ảnh test. Bản hướng dẫn có lock và kế hoạch amendment
+riêng; không ghi nhận xét tham khảo thành nhãn người. Kế hoạch gốc được giữ
+nguyên byte. Các mô hình, trọng số, seed, prompt, dữ liệu, mẫu và chỉ số
+không thay đổi. Chỉ CLI có kiểm amendment mới chấp nhận lock này; không
+thêm cờ bỏ qua điều kiện hoặc sửa rubric theo điểm test.
+
+Luồng xuất từng identity ở `scripts/run_study_test.py`, dùng lại exporter
+hiện có. Kiểm đầu vào bằng `--inspect`; chạy và resume chỉ sau khi rubric
+đã khóa. Luồng phục hồi giữ prefix và thư mục lỗi, không ghi đè lịch sử.
+Tiến độ và bảng kết quả tám identity dùng `scripts/report_test.py`; chỉ
+tính điểm khi đủ toàn bộ test, giữ M0/M1 dùng chung và BERTScore thiếu rõ.
+
 Chỉ số chính: chênh lệch hỗ trợ theo ảnh 0–2 giữa M3 và M2 trên toàn mẫu.
 Bổ sung: đáp án đúng kèm hỗ trợ 2, chi tiết không được ảnh hỗ trợ và uncertain.
 EM/F1 đo đáp án; ROUGE-L/BERTScore đo tương đồng văn bản, không thay phần chấm
@@ -172,6 +212,31 @@ seed 42 phải được ghi rõ, không suy CI người chấm thành kết qu�
 Phân tích lỗi theo loại, nguồn negative, độ dài; báo cả trường hợp DPO không
 cải thiện. Không lọc ví dụ test xấu ra khỏi bảng.
 
+Ngày 27/10 đã hoàn tất công cụ phân tích toàn bộ validation ba seed:
+1.407 câu / 1.383 ảnh, giữ nguyên output. M3 khớp thêm/mất khớp đáp án
+so với M2 lần lượt là 72/75, 71/73 và 75/82 theo ba seed. Nhóm câu hỏi
+được gán bằng quy tắc và chỉ dùng thăm dò; các nhóm dưới 30 câu có cờ
+nhóm nhỏ. Trang xem ảnh và bốn đầu ra không tạo nhãn chất lượng, không
+đọc prediction test. Kết quả ở
+`reports/generated/validation_diagnostics_20261027/`.
+
+Thứ tự hoàn tất phần thực nghiệm:
+
+1. Khóa hướng dẫn từ validation theo amendment 30/10; nhãn người vẫn chưa
+   hoàn tất. Người chấm luyện tiêu chí độc lập trước khi chấm test, không
+   lấy quyết định của công cụ làm nhãn người hoặc thay hướng dẫn theo test.
+2. Kiểm lại tám identity trong hồ sơ test bằng cấu hình đã khóa; xuất đủ
+   15.744 prediction test, giữ M0/M1 dùng chung khi identity khớp. Nếu
+   ngắt phiên, nối đúng lượt còn thiếu thay vì xuất lại toàn bộ.
+3. Tính EM/F1/ROUGE-L/BERTScore, paired image-bootstrap và tổng hợp ba
+   seed. Chấm mù 200 ảnh test bằng gói đã cố định; báo số người chấm thật,
+   độ đồng thuận và CI theo đúng giao thức.
+4. Đưa cả kết quả thuận lợi và bất lợi vào bảng cuối; lấy ví dụ từ trang
+   phân tích với ID/seed rõ ràng. Không dùng ví dụ chọn tay thay kết quả toàn tập.
+
+Chưa mở thêm backbone, train epoch hoặc tìm siêu tham số. Phần còn thiếu
+là đánh giá theo ảnh và nghiệm thu sản phẩm, không phải thêm số lượt train.
+
 ## 5. Demo và báo cáo
 
 Giữ khung Word và code demo hiện có. Hoàn thiện luồng nhận ảnh/câu hỏi mới,
@@ -181,6 +246,12 @@ giao diện/API; model chạy GPU, không train Qwen trên CPU.
 Nghiệm thu live: ít nhất ba ảnh/câu chưa dùng trong replay, có identity
 adapter, thời gian suy luận, xử lý lỗi, reload và endpoint xác thực. Replay
 không được trình bày thành live. Lưu một bộ ảnh/bảng kết quả cuối để báo cáo.
+
+Ngày 27/10 giao diện mới đã chạy M1 thật trên T4 với ba ảnh mẫu ngoài kho
+dữ liệu; copy/zoom/lịch sử/reload, Ctrl+Enter và bố cục 390px đã kiểm.
+Metadata adapter khớp M1-3683, notebook/output và ảnh màn hình đã lưu tại
+`artifacts/demo_acceptance_20261027/`. Mốc này nghiệm thu chức năng;
+lời giải thích còn lặp/chung chung, không thay chấm theo ảnh hoặc test cuối.
 
 Báo cáo chính: bài toán → dữ liệu → phương pháp → thiết kế đối chứng →
 kết quả đa seed → chấm mù/phân tích lỗi → demo → giới hạn. Không đưa toàn bộ
@@ -212,6 +283,19 @@ Một source release sau một mốc đã qua kiểm thử, không release sau m
 comment. Mỗi mốc ghi một mục ngắn trong TIEN_DO, cập nhật trạng thái cùng
 tài liệu; không thêm note hay khung báo cáo mới. Đồng bộ Drive phải kiểm file
 thật; chưa upload thì ghi local-only.
+
+## Nghiên cứu bổ sung — 5/11/2026
+
+Triển khai M4: DPO cộng NLL riêng phần đáp án, giữ cùng dữ liệu, M1,
+LR và ngân sách update của M3. Cấu hình hiện dành cho seed 42; mới có
+code/kiểm CPU, chưa có kết quả GPU hoặc chất lượng. Study riêng ở
+`configs/experiments/answer_preservation.yaml`; thiết kế và điều kiện
+chuyển sang train tại [answer_preservation.md](answer_preservation.md).
+
+Đối chứng đầu tiên giữ bộ 1.000 cặp để cô lập thay đổi loss. Việc nâng
+chất lượng cặp sẽ là lượt riêng. M4 phát triển trên validation; test cũ
+đã được xem, cần holdout mới được khóa trước để xác nhận bản nâng cấp.
+Nghiên cứu chính và toàn bộ kết quả M0–M3 được giữ để tái lập.
 
 ## Cơ sở thiết kế
 

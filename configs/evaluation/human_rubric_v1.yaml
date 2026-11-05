@@ -1,0 +1,25 @@
+protocol_id: vqa_nle_image_support_v1
+revision: 1
+calibration_images: 30
+test_images: 200
+representative_training_seed: 42
+primary_contrast: M3_minus_M2
+primary_metric: explanation_support
+answer_assessment:
+  correct: Đáp án phù hợp với câu hỏi và bằng chứng trong ảnh.
+  incorrect: Đáp án sai theo ảnh hoặc không trả lời câu hỏi.
+  uncertain: Ảnh hoặc câu hỏi không đủ rõ để kết luận.
+explanation_support:
+  0: Giải thích rỗng, mâu thuẫn với ảnh, không liên quan hoặc chỉ lặp đáp án.
+  1: Có bằng chứng liên quan nhưng chưa đủ để hỗ trợ đáp án hoặc còn chi tiết không chắc.
+  2: Bằng chứng nhìn thấy trong ảnh rõ và đủ hỗ trợ đáp án; không có chi tiết sai đáng kể.
+unsupported_detail:
+  'yes': Có ít nhất một chi tiết không được ảnh hỗ trợ.
+  'no': Không tìm thấy chi tiết không được ảnh hỗ trợ.
+  uncertain: Không đủ rõ để xác định chi tiết đó có trong ảnh hay không.
+instructions:
+  - Chấm đáp án và lời giải thích riêng; không suy điểm từ độ dài hoặc văn phong.
+  - Ghi một chi tiết nhìn thấy trong ảnh để giải thích quyết định.
+  - Giữ câu sai, rỗng và mơ hồ trong mẫu số; không sửa output của mô hình.
+  - Chấm độc lập trước khi thảo luận bất đồng; dùng mã người chấm, không cần tên thật.
+  - Không dùng nhãn tự động thay cho đánh giá của người chấm.

@@ -1,0 +1,120 @@
+<!doctype html><html lang="vi"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self';
+style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'">
+<title>Đánh giá lời giải thích</title><style>
+body{font:16px/1.5 Arial;max-width:1000px;margin:24px auto;padding:0 16px}
+img{width:100%;height:360px;object-fit:contain}label{display:block;margin:10px 0}
+textarea,select,button{font:inherit}textarea{width:100%;min-height:65px;box-sizing:border-box}
+#answer,#explanation{white-space:pre-wrap}[hidden]{display:none}
+</style><h1>Đánh giá theo ảnh</h1>
+<p>Chấm độc lập. Mức hỗ trợ: 0 = sai hoặc không hỗ trợ; 1 = một phần;
+2 = bằng chứng rõ và đủ hỗ trợ đáp án. Giữ nhãn mơ hồ khi ảnh chưa đủ xác định.
+Ghi chi tiết không được ảnh hỗ trợ riêng. Trang tự lưu nháp trong trình duyệt;
+dùng Xuất nháp sau mỗi phiên để lưu ra tệp. Xuất nhãn hoàn chỉnh khi đã chấm đủ.</p>
+<select id="picker" aria-label="Chọn đầu ra"></select>
+<button id="next">Đến mục chưa xong</button>
+<button id="draft">Xuất nháp</button>
+<button id="export">Xuất nhãn hoàn chỉnh</button>
+<p id="progress" aria-live="polite"></p>
+<label>Nhập nhãn<input id="import" type="file" accept=".jsonl"></label>
+<p id="status" role="status"></p><h2 id="question"></h2><img id="image" alt="Ảnh câu hỏi">
+<h3>Đáp án</h3><p id="answer"></p><h3>Giải thích</h3><p id="explanation"></p>
+<div id="form"></div><script type="application/json" id="data">__VQA_DATA__</script>
+<script>(()=>{
+const source=JSON.parse(document.getElementById('data').textContent);
+const rows=source.map(row=>({...row}));
+const storageKey='vqa-blind-draft-v1:__DRAFT_KEY__';
+let dirty=false;
+const picker=document.getElementById('picker'),status=document.getElementById('status');
+const fields={review_status:'Trạng thái',reviewer:'Người chấm (mã ẩn danh)',
+answer_assessment:'Đáp án theo ảnh',explanation_support:'Mức hỗ trợ (0–2)',
+unsupported_detail:'Có chi tiết không được ảnh hỗ trợ?',image_evidence:'Bằng chứng / ghi chú'};
+const options={review_status:['pending','reviewed'],
+answer_assessment:['','correct','incorrect','uncertain'],explanation_support:['','0','1','2'],
+unsupported_detail:['','yes','no','uncertain']};
+const editable=[...Object.keys(fields),'reviewed_at'];
+const names={pending:'Chưa chấm',reviewed:'Đã chấm',correct:'Đúng',incorrect:'Sai',
+uncertain:'Chưa chắc',yes:'Có',no:'Không'};
+function isComplete(r){return r.review_status==='reviewed'&&!!r.reviewer?.trim()
+&&!!r.image_evidence?.trim()&&['correct','incorrect','uncertain'].includes(r.answer_assessment)
+&&[0,1,2].includes(r.explanation_support)&&['yes','no','uncertain'].includes(r.unsupported_detail)
+&&typeof r.reviewed_at==='string'&&/(Z|[+-]\d{2}:\d{2})$/.test(r.reviewed_at)
+&&Number.isFinite(Date.parse(r.reviewed_at));}
+function progress(){const images=new Map();let complete=0;
+rows.forEach(r=>{const valid=isComplete(r);complete+=Number(valid);
+images.set(r.image_path,(images.get(r.image_path)??true)&&valid);});
+const ready=[...images.values()].filter(Boolean).length;
+document.getElementById('progress').textContent=
+`Đủ trường: ${complete}/${rows.length} đầu ra; ${ready}/${images.size} ảnh.`;}
+function validate(input,{complete=true}={}){
+if(!Array.isArray(input)||input.length!==rows.length)throw Error('Số dòng không khớp');
+input.forEach((row,i)=>{
+if(!row||typeof row!=='object'||Array.isArray(row))throw Error('Dòng nhãn không hợp lệ');
+Object.keys(source[i]).filter(k=>!editable.includes(k)).forEach(k=>{
+if(JSON.stringify(row[k])!==JSON.stringify(source[i][k]))throw Error('Nguồn đầu ra không khớp');});
+if(!['pending','reviewed'].includes(row.review_status))throw Error('Trạng thái không hợp lệ');
+['reviewer','reviewed_at','image_evidence'].forEach(k=>{
+if(row[k]!=null&&typeof row[k]!=='string')throw Error('Trường văn bản không hợp lệ');});
+['answer_assessment','unsupported_detail'].forEach(k=>{
+if(row[k]!=null&&row[k]!==''&&!options[k].includes(row[k]))throw Error('Nhãn không hợp lệ');});
+if(row.explanation_support!=null&&![0,1,2].includes(row.explanation_support))
+throw Error('Mức hỗ trợ không hợp lệ');
+if(row.reviewed_at&&!/(Z|[+-]\d{2}:\d{2})$/.test(row.reviewed_at))
+throw Error('Thời gian cần có múi giờ');
+if(row.reviewed_at&&!Number.isFinite(Date.parse(row.reviewed_at)))throw Error('Thời gian không hợp lệ');
+if(complete&&!isComplete(row))throw Error('Còn thiếu đánh giá; dùng Xuất nháp để lưu phần đang chấm');
+});
+if(complete&&new Set(input.map(r=>r.reviewer.trim())).size!==1)
+throw Error('Dùng một mã người chấm nhất quán trong tệp');}
+function replaceEditable(input){input.forEach((r,i)=>editable.forEach(k=>rows[i][k]=r[k]));}
+function saveDraft(){
+try{localStorage.setItem(storageKey,JSON.stringify(rows));
+status.textContent='Đã lưu nháp trong trình duyệt; dùng Xuất nháp để lưu ra tệp.';}
+catch(error){status.textContent='Không lưu được nháp; hãy Xuất nháp ngay.';}}
+function restoreDraft(){try{
+const saved=localStorage.getItem(storageKey);if(!saved)return;
+const input=JSON.parse(saved);validate(input,{complete:false});replaceEditable(input);dirty=true;
+status.textContent='Đã khôi phục nháp; dùng Xuất nháp để lưu ra tệp.';
+}catch(error){status.textContent='Nháp không hợp lệ hoặc không khớp nguồn; không khôi phục. '+
+'Dữ liệu lưu cũ không bị xóa. Có thể nhập JSONL đã xuất.';}}
+function refresh(){progress();const old=picker.value;picker.replaceChildren();rows.forEach((r,i)=>{
+const option=document.createElement('option');option.value=i;
+option.textContent=`${i+1}/${rows.length} — ${isComplete(r)?'Đủ trường':names[r.review_status]}`;picker.append(option);});
+picker.value=old||'0';}
+function draw(){const i=Number(picker.value),r=rows[i];
+document.getElementById('question').textContent=r.question;
+document.getElementById('image').src=r.image_path;
+document.getElementById('answer').textContent=r.prediction_answer;
+document.getElementById('explanation').textContent=r.prediction_explanation;
+const form=document.getElementById('form');form.replaceChildren();
+Object.entries(fields).forEach(([k,text])=>{const label=document.createElement('label');
+label.textContent=text;const input=document.createElement(options[k]?'select':'textarea');
+if(options[k])options[k].forEach(v=>{const o=document.createElement('option');o.value=v;
+o.textContent=names[v]||v||'Chưa ghi';input.append(o);});input.value=r[k]??'';
+input.addEventListener('input',()=>{r[k]=k==='explanation_support'&&input.value!==''
+?Number(input.value):input.value.trim()||null;r.reviewed_at=new Date().toISOString();
+dirty=true;refresh();saveDraft();});label.append(input);
+form.append(label);});}
+picker.addEventListener('change',draw);
+document.getElementById('next').addEventListener('click',()=>{
+const start=Number(picker.value);for(let step=1;step<=rows.length;step++){
+const index=(start+step)%rows.length;if(!isComplete(rows[index])){
+picker.value=String(index);draw();return;}}
+status.textContent='Các đầu ra đã đủ trường; có thể xuất nhãn hoàn chỉnh.';});
+function download(complete){try{validate(rows,{complete});
+const url=URL.createObjectURL(new Blob([rows.map(r=>JSON.stringify(r)).join('\n')+'\n'],
+{type:'application/x-ndjson'}));const link=document.createElement('a');link.href=url;
+link.download=rows[0].rater_id+'___SPLIT___'+(complete?'_ratings':'_draft')+'.jsonl';link.click();
+setTimeout(()=>URL.revokeObjectURL(url),1000);status.textContent='Kiểm tra file trong Downloads.';
+dirty=false;
+}catch(error){status.textContent=error.message;}}
+document.getElementById('draft').addEventListener('click',()=>download(false));
+document.getElementById('export').addEventListener('click',()=>download(true));
+document.getElementById('import').addEventListener('change',async event=>{try{
+const text=await event.target.files[0].text();const input=text.split(/\r?\n/)
+.filter(line=>line.trim()).map(JSON.parse);validate(input,{complete:false});
+replaceEditable(input);dirty=true;refresh();draw();saveDraft();
+}catch(error){status.textContent=error.message;}});
+window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue='';}});
+restoreDraft();refresh();draw();})();</script></html>

@@ -11,6 +11,7 @@ import yaml
 
 from vqa_explanation.data.io import read_jsonl, write_json
 from vqa_explanation.training.sft_data import VQACollator, select_training_records
+from vqa_explanation.utils.model_loading import quantization_kwargs
 
 
 def validate_smoke_completion(
@@ -65,12 +66,7 @@ def load_qlora_model(cfg: dict, model_cfg: dict):
         torch_dtype=dtype,
         device_map={"": 0},
         attn_implementation="sdpa",
-        quantization_config=BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_compute_dtype=dtype,
-        ),
+        quantization_config=BitsAndBytesConfig(**quantization_kwargs(dtype, double_quant=True)),
     )
     model = prepare_model_for_kbit_training(
         model,

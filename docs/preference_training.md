@@ -9,9 +9,13 @@ Seed 42 và 43 đã train xong, có validation/BERTScore/CI kiểm độc lập.
 Seed 44 đã hoàn tất hai nhánh và xuất đủ validation ngày 19/10. Ngày 20/10
 đã tính BERTScore seed 44 và tổng hợp đủ ba seed. Không chạy lại một lượt
 đã hoàn tất chỉ để xem output.
-Ngày 21/10, report đối chứng LR 5e-6 của hai nhánh đều `passed`, 375 update;
-M3 dùng attempt `m3_train_resume175`. Còn kiểm độc lập đầy đủ checkpoint cuối
-M3 và chạy validation đối chứng, chưa có kết quả chất lượng của LR này.
+Ngày 22/10, checkpoint cuối đối chứng LR 5e-6 đã kiểm độc lập; hai nhánh
+đều `passed`, 375 update. M3 dùng attempt `m3_train_resume175`. Export
+validation đã hoàn tất 1.407 câu mỗi nhánh. Ngày 23/10 đã kiểm prediction,
+manifest, hồ sơ train và ảnh thật; EM/F1/ROUGE-L cùng CI đã lập. BERTScore LR
+hoàn tất trên T4 lúc 18:01 ngày 23/10: M2/M3 77,16 / 81,65. File thật và
+CI đã kiểm độc lập; không train hoặc sinh lại prediction. Giữ LR 1e-5 cho
+nghiên cứu chính ba seed; LR 5e-6 là đối chứng riêng.
 
 ## Notebook và code
 
@@ -115,9 +119,21 @@ giữ `RUN_EXPORT=False` tới khi inspect đạt.
 Nếu file chính mất dòng nhưng còn recovery snapshot, dùng
 `scripts/recover_validation.py` với cùng study, run, M1 và `--m3-stage`,
 thêm `--source-dir`, `--output-dir` mới và `--inspect`.
-Công cụ kiểm hash/prefix trước khi sao chép, giữ nguyên bản lỗi.
+Công cụ kiểm hash/prefix trước khi sao chép, giữ nguyên bản lỗi. Bỏ `--inspect`
+chỉ sau khi kế hoạch phục hồi đúng; record nối tiếp phải trỏ đích mới và ghim
+biên nhận recovery. Không sửa record hoặc source cũ.
+Source mới chặn validation trước khi nạp model nếu file chính bị mất/rút
+ngắn so với snapshot đóng. Kiểm này không được vá vào release đã ghim.
 Nếu chỉ đổi địa chỉ kho, `--relocate-from` của CLI validation cũng yêu cầu
 output mới và đối chiếu identity; không bỏ kiểm để tiếp tục.
+
+Notebook LR hoàn tất ngày 22/10 có hai ô bảo trì dùng một lần; giữ nguyên
+để đối chiếu, không dùng Run all như template. Tiếp tục bằng template 05
+sạch, chọn `TASK` và record ở đầu; không nối thêm ô sửa phiên ở cuối.
+
+Khi ngắt lệnh hoặc có lỗi callback, helper dừng cây tiến trình do lệnh đó
+tạo ra. Đây không phải thao tác lưu checkpoint mới; sau ngắt vẫn phải kiểm
+file bền vững và chỉ tiếp tục từ checkpoint/snapshot đã xác minh.
 
 ## Bảng số liệu và các phép đo riêng
 
@@ -182,6 +198,12 @@ Giữ notebook 04 có output lịch sử; bản thực thi đối chứng dùng 
 Lượt 186 cặp ngày 14/10: mỗi nhánh một epoch / 24 update, LR 5e-6.
 Giữ config `sft_chosen.yaml`, `dpo.yaml`, launch v1, checkpoint và output
 nguyên vẹn; không dùng cho run mới hoặc đổi nhãn thành kết quả chính.
+
+Điểm vào chính là notebook 04 hoặc `scripts/launch_preference_training.py`
+với launch record đã ghim. `train_preference.py` và wrapper `train_dpo.py`
+là CLI mức thấp: mặc định study/config thuộc lượt 186 cặp. Nếu gọi trực tiếp,
+phải chọn rõ `--study-config` và `--config` của lượt cần chạy; không dùng
+mặc định để khởi chạy bộ 1.000 cặp. Không đổi config lịch sử để sửa mặc định.
 
 Xử lý cặp đã chuyển sang CLI `expand_preferences.py`,
 `finalize_preference_review.py` và [quy trình dữ liệu](preference_annotation.md).

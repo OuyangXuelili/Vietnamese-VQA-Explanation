@@ -138,7 +138,7 @@ def test_main_launch_uses_same_gate_folder_after_reexecution(tmp_path):
     assert command[command.index("--output-dir") + 1] == str(tmp_path / "run/m3_train")
 
 
-@pytest.mark.parametrize("arm", ["m2", "m3"])
+@pytest.mark.parametrize("arm", ["m2", "m3", "m4"])
 def test_cloud_command_uses_the_isolated_interpreter(tmp_path, arm):
     python = tmp_path / "env/bin/python"
     command = launch.launch_command(tmp_path, tmp_path / "launch.json", tmp_path,
@@ -192,3 +192,15 @@ def test_resume_cannot_reuse_initial_output(tmp_path):
 def test_gate_label_cannot_change_the_expected_gate_path(tmp_path):
     with pytest.raises(ValueError, match="main training"):
         launch.stage_output(tmp_path, "m3", "gate", "another")
+
+
+def test_launch_cannot_write_a_different_arm_into_m4_output(tmp_path, monkeypatch):
+    path = record_file(tmp_path, data_locked=True, expected_pairs=1000,
+                       scope="answer_preservation_experiment",
+                       preferences="preferences", m1_adapter="adapter", m1_selection="selection",
+                       environment="environment.yaml", study_config="study.yaml",
+                       m4_config="configs/training/dpo_full.yaml")
+    monkeypatch.setattr(launch, "prepare_stage", lambda args: (None, None, {
+        "pairs": 1000, "comparison_protocol": {"arm": "m3"}}))
+    with pytest.raises(ValueError, match="Launch arm differs"):
+        launch.prepare_launch(path, tmp_path, "m4", "inspect")

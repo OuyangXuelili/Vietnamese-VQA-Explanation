@@ -3,6 +3,7 @@ import base64
 import io
 import json
 import threading
+from types import SimpleNamespace
 
 import pytest
 from PIL import Image
@@ -176,13 +177,21 @@ def test_demo_http_live_input_errors_and_private_auth(image_bytes):
     assert api.get("/api/examples/q1").status_code == 404
 
 
-def test_demo_timeout_keeps_worker_lock_until_finish(image_bytes):
+def test_demo_timeout_keeps_worker_lock_until_finish(monkeypatch, image_bytes):
     started, release = threading.Event(), threading.Event()
     class SlowRunner:
         def generate(self, *args, **kwargs):
             started.set()
-            release.wait(2)
+            release.wait(30)
             return "Đáp án: xanh\nGiải thích: ảnh xanh"
+    wait_for = asyncio.wait_for
+
+    async def wait_after_worker_start(awaitable, timeout):
+        task = asyncio.ensure_future(awaitable)
+        assert await asyncio.to_thread(started.wait, 5)
+        return await wait_for(task, timeout)
+
+    monkeypatch.setattr(asyncio, "wait_for", wait_after_worker_start)
     service = LiveService(SlowRunner(), {"experiment_id": "M1_SFT"})
     api = client(service, timeout_seconds=.01)
     payload = {"question": "Ảnh màu gì?", "image_base64": base64.b64encode(image_bytes).decode()}
@@ -239,7 +248,8 @@ def test_live_factory_rejects_wrong_adapter_and_cpu_before_model_load(
     manifest = tmp_path / "manifest.json"
     manifest.write_text(json.dumps({"inputs": {"experiment_id": "M1_SFT", "split": "validation",
         "adapter_files": adapter_fingerprint(adapter)["files"], "model_id": "model",
-        "model_revision": "rev"}, "protocol": {}}), encoding="utf-8")
+        "model_revision": "rev"}, "protocol": {"compute_dtype": "torch.float16"}}),
+        encoding="utf-8")
     selection = tmp_path / "selection.json"
     selection.write_text(json.dumps({"status": "selected", "selection_split": "validation",
         "adapter": adapter_fingerprint(adapter), "model_id": "model", "model_revision": "rev",
@@ -252,6 +262,69 @@ def test_live_factory_rejects_wrong_adapter_and_cpu_before_model_load(
     (adapter / "adapter_model.safetensors").write_bytes(b"changed weights")
     with pytest.raises(ValueError, match="frozen M1 selection"):
         load_live_service(adapter, selection, manifest)
+
+
+@pytest.fixture
+def live_factory_files(tmp_path, monkeypatch):
+    from vqa_explanation.inference import qwen25_vl
+    from vqa_explanation.training.preference_data import adapter_fingerprint
+
+    adapter = tmp_path / "checkpoint-3683"
+    adapter.mkdir()
+    (adapter / "adapter_config.json").write_text("{}", encoding="utf-8")
+    (adapter / "adapter_model.safetensors").write_bytes(b"fixture weights")
+    protocol = {"min_pixels": 200704, "max_pixels": 200704, "max_new_tokens": 128,
+                "load_in_4bit": True, "prompt_sha256": "a" * 64,
+                "generation_config": {"do_sample": False}, "compute_dtype": "torch.float16"}
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({"inputs": {"experiment_id": "M1_SFT", "split": "validation",
+        "adapter_files": adapter_fingerprint(adapter)["files"], "model_id": "model",
+        "model_revision": "rev"}, "protocol": protocol}), encoding="utf-8")
+    selection = tmp_path / "selection.json"
+    selection.write_text(json.dumps({"status": "selected", "selection_split": "validation",
+        "adapter": adapter_fingerprint(adapter), "model_id": "model", "model_revision": "rev",
+        "evidence": {"validation_manifest": {"sha256": sha256_file(manifest)}}}), "utf-8")
+    import torch
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    actual = dict(protocol)
+    runner = SimpleNamespace(model=SimpleNamespace(hf_device_map={"": "cuda:0"}),
+                             protocol_metadata=lambda _: actual)
+    monkeypatch.setattr(qwen25_vl, "Qwen25VLRunner", lambda *args, **kwargs: runner)
+    return adapter, selection, manifest, actual
+
+
+@pytest.mark.parametrize("dtype", ["torch.float16", "torch.bfloat16", None])
+def test_live_factory_preserves_validation_compute_dtype(live_factory_files, dtype):
+    adapter, selection, manifest, actual = live_factory_files
+    if dtype is None:
+        actual.pop("compute_dtype")
+    else:
+        actual["compute_dtype"] = dtype
+    if dtype == "torch.float16":
+        assert load_live_service(adapter, selection, manifest).info()["mode"] == "live"
+    else:
+        with pytest.raises(ValueError, match="compute_dtype"):
+            load_live_service(adapter, selection, manifest)
+
+
+def test_live_factory_passes_explicit_manifest_precision(live_factory_files, monkeypatch):
+    from types import SimpleNamespace
+
+    from vqa_explanation.inference import qwen25_vl
+
+    adapter, selection, manifest, actual = live_factory_files
+    calls = []
+
+    def load_runner(*args, **kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(model=SimpleNamespace(hf_device_map={"": "cuda:0"}),
+                               protocol_metadata=lambda _: actual)
+
+    monkeypatch.setattr(qwen25_vl, "Qwen25VLRunner", load_runner)
+    load_live_service(adapter, selection, manifest)
+    assert calls[0]["loading_profile"] == {
+        "dtype": "float16", "double_quant": False, "attention": "sdpa"}
 
 
 def test_release_includes_demo_frontend(tmp_path):

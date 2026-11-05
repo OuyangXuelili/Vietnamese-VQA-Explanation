@@ -11,15 +11,33 @@ Hồ sơ cả ba seed nằm trong `preference_v2/`; đối chứng đổi ảnh 
 
 | Mục đích | Vị trí hiện hành |
 |---|---|
+| Bộ chính 1.000 cặp và hồ sơ khóa | `../data/preferences/vivqax_m1_3683_v2/frozen_1000_reviewed_20261015/` |
 | Validation seed 44 và hồ sơ train | `preference_v2/validation_seed44_20261020/` |
 | Bảng validation ba seed | `../reports/generated/preference_validation_three_seeds_20261020/` |
+| Phân tích 1.407 câu, ảnh và đối chiếu bốn đầu ra qua ba seed | `../reports/generated/validation_diagnostics_20261027/` |
+| Kiểm nâng cấp phân tích, bảo toàn source/notebook và gate | `validation_upgrade_20261027/` |
+| Đối chiếu Drive/local, tình trạng đồng bộ và giới hạn kiểm | `drive_audit_20261027/` |
+| Rà toàn dự án, sửa công cụ checksum/cài đặt, kiểm dữ liệu và bảo toàn lịch sử | `full_review_20261027/` |
+| Kiểm lại dữ liệu pixel và chuẩn bị đồng bộ source/kết quả | `drive_sync_20261027/` |
 | Notebook 05 có output và ảnh hoàn tất | `validation_analysis_20261020/` |
 | Đối chứng LR 5e-6: launch, snapshot ngắt/nối và notebook train hoàn tất | `preference_v2/lr5e6_20261020/` |
+| Validation LR có output hoàn tất | `preference_v2/lr5e6_20261020/05_lr5e6_completed_20261022.ipynb` |
+| Validation LR đã kiểm độc lập và hồ sơ train thật | `preference_v2/validation_lr5e6_20261023/` |
+| BERTScore LR: sáu file gốc và biên nhận | `preference_v2/validation_lr5e6_20261023/semantic/` |
+| Notebook semantic có output hoàn tất | `preference_v2/validation_lr5e6_20261023/05_lr_semantic_completed_20261023.ipynb` |
+| Bảng so sánh LR đầy đủ EM/F1/ROUGE-L/BERTScore | `../reports/generated/preference_lr_sensitivity_semantic_20261023/` |
+| Luyện rubric: 30 ảnh validation, nhãn còn trống | `human_evaluation/rubric_calibration_30_seed42_v1/` |
+| Kiểm tiến độ chấm thử: 0/120 mục mỗi file, chưa khóa rubric | `human_evaluation/calibration_progress_20261027/` |
+| Nghiệm thu giao diện M1 trên ba ảnh ngoài dữ liệu, desktop/mobile và notebook có output | `demo_acceptance_20261027/` |
+| Rà loader, notebook 06 và kiểm kỹ thuật live T4 | `demo_live_20261024/` |
+| Nối web nhận ảnh mới với backend M1 | `demo_web_20261024/` |
+| Hồ sơ chuẩn bị tám identity test, chưa chạy model | `human_evaluation/final_test_preparation_v1/` |
+| Gate toàn repo, audit dữ liệu và bảo toàn output 23/10 | `maintenance_20261023/check_project_final_evaluation.log`, `final_preparation_audit.log` |
 | Bảo trì baseline/ZIP: log kiểm, hash bảo toàn và record validation LR mới | `maintenance_baseline_reuse_20261021/` |
 | Kết quả duyệt cặp M1 | `preference_editor_m1_3683_2000_20261008/review_results_final_20261014.html` |
 | Pilot 100 đã chốt | `../data/preferences/pilot_ai_20261012/decision_record.json` |
 | Notes toàn pool — 2.000 quyết định | `../data/preferences/review_complete_20261014/reviewed_notes.jsonl` |
-| Bộ train đã khóa — 186 cặp | `../data/preferences/vivqax_m1_3683_v1/README.md` |
+| Bộ v1 lịch sử — 186 cặp | `../data/preferences/vivqax_m1_3683_v1/README.md` |
 | Quyết định và danh sách cặp rút | `../data/preferences/vivqax_m1_3683_v1/decision_record.json`, `quality_review.json` |
 | Kiểm lượt cuối và toàn bộ cặp giữ | `preference_review_complete_20261014/` |
 | Nhận xét AI đã kiểm lại | `preference_ai_triage_m1_3683_pilot_20261012_qc/` |
@@ -31,10 +49,13 @@ Hồ sơ cả ba seed nằm trong `preference_v2/`; đối chứng đổi ảnh 
 | Tổ chức notebook và kiểm toàn repo 13/10 | `code_organization_20261013/review.json` |
 | Output M1 giữ nguyên | `../notebooks/archive/03_m1_completed_with_outputs_20261013.ipynb` |
 
-LR 5e-6 đã có hai report train `passed` / 375 update; validation chưa chạy.
-Snapshot hoàn tất là `preference_v2/lr5e6_20261020/04_lr5e6_completed_20261021.ipynb`.
-Đây là kết quả train, chưa thay bảng validation ba seed ở trên. Checkpoint cuối
-M3 còn cần đọc lại payload độc lập theo nhật ký.
+LR 5e-6: hai report train `passed` / 375 update, checkpoint cuối đã kiểm
+độc lập. Notebook validation hoàn tất ngày 22/10, mỗi nhánh 1.407 câu và
+bốn comparison comparable. Ngày 23/10 đã kiểm độc lập prediction, manifest,
+train report/state và ảnh thật; bảng EM/F1/ROUGE-L cùng CI đã lập. BERTScore
+LR hoàn tất trên T4 ngày 23/10, đã tải sáu file về đối chiếu hash, giao thức
+và CI. Giữ bảng trước semantic nguyên vẹn, không thay bảng ba seed chính
+bằng đối chứng một seed.
 
 `project_source.zip` ở gốc là snapshot ngày 18/09/2026. Để tiếp tục dự án,
 dùng release đã xác minh trong `releases/` và đọc nhật ký để chọn đúng bản.

@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 
+from vqa_explanation.demo.colab import proxy_host_allowed, proxy_policy
 from vqa_explanation.demo.service import MAX_IMAGE_BYTES, DemoError
 from vqa_explanation.utils.environment import project_root
 
@@ -20,11 +21,15 @@ LOGGER = logging.getLogger(__name__)
 
 
 def create_app(service, *, auth: tuple[str, str] | None = None, timeout_seconds: float = 90,
-               static_dir: Path | None = None) -> FastAPI:
+               static_dir: Path | None = None, colab_origin: str | None = None,
+               colab_frame_origin: str | None = None) -> FastAPI:
     if timeout_seconds <= 0:
         raise ValueError("Timeout must be positive")
     if auth is not None and (len(auth) != 2 or not all(auth)):
         raise ValueError("Auth needs a username and password")
+    if colab_frame_origin and not colab_origin:
+        raise ValueError("A Colab frame requires the matching proxy origin")
+    proxy = proxy_policy(colab_origin, frame_origin=colab_frame_origin) if colab_origin else None
     static = static_dir or project_root() / "app/static"
     app = FastAPI(title="Vietnamese VQA", docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -42,19 +47,35 @@ def create_app(service, *, auth: tuple[str, str] | None = None, timeout_seconds:
             if not permitted:
                 return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="VQA"'})
         origin = request.headers.get("origin")
-        if origin and urlsplit(origin).netloc != request.headers.get("host"):
-            return JSONResponse({"detail": "Cross-origin access is disabled"}, status_code=403)
-        # Prevent unauthenticated localhost access through DNS rebinding.
-        if not auth and request.url.hostname not in {"127.0.0.1", "localhost", "::1"}:
-            return Response(status_code=403)
+        local = request.url.hostname in {"127.0.0.1", "localhost", "::1"}
+        if proxy:
+            peer = request.client.host if request.client else None
+            if not local and not proxy_host_allowed(request.headers.get("host", ""), proxy, peer):
+                LOGGER.warning("Colab proxy rejected: unexpected Host header")
+                return JSONResponse({"detail": "Unexpected proxy host"}, status_code=403)
+            allowed = {proxy["origin"]}
+            if local:
+                allowed.add(f"{request.url.scheme}://{request.headers.get('host')}")
+            if origin and origin not in allowed:
+                LOGGER.warning("Colab proxy rejected: unexpected Origin header")
+                return JSONResponse({"detail": "Unexpected proxy origin"}, status_code=403)
+        else:
+            if origin and urlsplit(origin).netloc != request.headers.get("host"):
+                return JSONResponse({"detail": "Cross-origin access is disabled"}, status_code=403)
+            # Prevent unauthenticated localhost access through DNS rebinding.
+            if not auth and not local:
+                return Response(status_code=403)
         response = await call_next(request)
         response.headers.update({
             "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
-            "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY",
+            "Referrer-Policy": "no-referrer",
             "Content-Security-Policy": "default-src 'self'; img-src 'self' blob: data:; "
                                        "script-src 'self'; style-src 'self'; "
-                                       "frame-ancestors 'none'",
+                                       "frame-ancestors "
+                                       + (proxy["frame_sources"] if proxy else "'none'"),
         })
+        if not proxy:
+            response.headers["X-Frame-Options"] = "DENY"
         return response
 
     @app.exception_handler(DemoError)

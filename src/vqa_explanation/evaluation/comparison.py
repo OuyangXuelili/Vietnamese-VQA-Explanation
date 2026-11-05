@@ -4,6 +4,8 @@ from statistics import mean
 
 import numpy as np
 
+from vqa_explanation.utils.model_loading import validate_loading_profile
+
 from .answer_metrics import exact_match, normalize_answer, token_f1
 from .explanation_metrics import rouge_l_f1
 
@@ -29,6 +31,8 @@ REFERENCE_FIELDS = (
     "split",
 )
 EXPERIMENT_IDS = ("M0_PRETRAINED", "M1_SFT", "M2_SFT_CHOSEN", "M3_DPO")
+SUPPORTED_EXPERIMENT_IDS = (*EXPERIMENT_IDS, "M4_DPO_ANSWER")
+OPTIONAL_PROTOCOL_FIELDS = ("model_loading", "image_processor_sha256")
 
 
 def cluster_bootstrap(differences, image_ids, *, seed=42, resamples=2000):
@@ -99,10 +103,12 @@ def compare_predictions(
     ):
         raise ValueError("Checkpoint comparison is only for M1 on validation")
     if (len(expected_experiments) != 2
-            or any(name not in EXPERIMENT_IDS for name in expected_experiments)
+            or any(name not in SUPPORTED_EXPERIMENT_IDS for name in expected_experiments)
             or (expected_experiments[0] == expected_experiments[1]
                 and not checkpoint_comparison)):
-        raise ValueError("Expected experiments must be two distinct M0-M3 experiment IDs")
+        raise ValueError("Expected experiments must be two distinct supported experiment IDs")
+    if "M4_DPO_ANSWER" in expected_experiments and expected_split != "validation":
+        raise ValueError("The answer-preservation study is currently validation-only")
     if expected_annotations is not None:
         if expected_validation_annotations is not None or expected_validation_ids is not None:
             raise ValueError("Do not mix generic and legacy validation references")
@@ -199,7 +205,15 @@ def compare_predictions(
                 issues.append(f"{label}/{qid}: load_in_4bit must be a boolean")
             if row.get("split") not in ("validation", "test"):
                 issues.append(f"{label}/{qid}: expected held-out split")
-            protocols.append([row.get(field) for field in PROTOCOL_FIELDS])
+            if "model_loading" in row:
+                try:
+                    profile = validate_loading_profile(row["model_loading"])
+                    if "torch." + profile["dtype"] != row.get("compute_dtype"):
+                        raise ValueError("model_loading dtype differs from compute_dtype")
+                except (ValueError, TypeError) as error:
+                    issues.append(f"{label}/{qid}: invalid model_loading: {error}")
+            protocols.append([row.get(field)
+                              for field in (*PROTOCOL_FIELDS, *OPTIONAL_PROTOCOL_FIELDS)])
         if protocols and any(p != protocols[0] for p in protocols):
             issues.append(f"{label}: mixed inference protocols within one file")
         rows = list(indexed.values())
@@ -290,7 +304,7 @@ def compare_predictions(
     if a.keys() != b.keys():
         issues.append("Question ID sets differ; refusing intersection-only scoring")
     for qid in sorted(a.keys() & b.keys()):
-        for field in (*REFERENCE_FIELDS, *PROTOCOL_FIELDS):
+        for field in (*REFERENCE_FIELDS, *PROTOCOL_FIELDS, *OPTIONAL_PROTOCOL_FIELDS):
             if a[qid].get(field) != b[qid].get(field):
                 issues.append(f"{qid}: mismatch {field}")
     if issues:

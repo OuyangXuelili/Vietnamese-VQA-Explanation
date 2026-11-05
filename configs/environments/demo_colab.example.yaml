@@ -1,0 +1,3 @@
+annotations: ${VQA_WORK_DATA}/metadata/validation.jsonl
+image_root: ${VQA_WORK_DATA}
+run_root: ${VQA_PROJECT_ROOT}/demo_runs

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import yaml
 
+from vqa_explanation.demo.colab import proxy_policy
 from vqa_explanation.demo.service import ReplayService, load_live_service
 from vqa_explanation.utils.environment import load_environment, project_root
 
@@ -18,7 +19,8 @@ def resolve_path(value: str) -> Path:
     return path if path.is_absolute() else project_root() / path
 
 
-def launch_settings(host: str, port: int) -> dict:
+def launch_settings(host: str, port: int, colab_origin: str | None = None,
+                    colab_frame_origin: str | None = None) -> dict:
     if not 1 <= port <= 65535:
         raise ValueError("Port must be between 1 and 65535")
     user, password = os.getenv("VQA_DEMO_USER"), os.getenv("VQA_DEMO_PASSWORD")
@@ -26,7 +28,13 @@ def launch_settings(host: str, port: int) -> dict:
         raise ValueError("Set both VQA_DEMO_USER and VQA_DEMO_PASSWORD")
     if host not in {"127.0.0.1", "localhost", "::1"} and not user:
         raise ValueError("A non-loopback server requires demo authentication and HTTPS forwarding")
-    return {"auth": (user, password) if user else None}
+    settings = {"auth": (user, password) if user else None}
+    if colab_origin:
+        if host not in {"127.0.0.1", "localhost", "::1"}:
+            raise ValueError("Colab proxy mode must listen on loopback only")
+        settings["colab_origin"] = proxy_policy(colab_origin, port, colab_frame_origin)["origin"]
+        settings["colab_frame_origin"] = colab_frame_origin
+    return settings
 
 
 def main():
@@ -38,8 +46,14 @@ def main():
     parser.add_argument("--adapter", type=Path, help="M1 checkpoint directory in the GPU runtime")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=7860)
+    parser.add_argument("--colab-origin", help="Exact private proxyPort HTTPS origin")
+    parser.add_argument("--colab-frame-origin", help="Exact origin of the current output cell")
     args = parser.parse_args()
-    settings = launch_settings(args.host, args.port)
+    if bool(args.colab_origin) != bool(args.colab_frame_origin):
+        parser.error("Provide both the private Colab proxy and output-frame origins")
+    if args.colab_origin and args.mode != "live":
+        parser.error("Colab proxy mode requires live inference")
+    settings = launch_settings(args.host, args.port, args.colab_origin, args.colab_frame_origin)
     config = yaml.safe_load(args.config.read_text(encoding="utf-8"))
     predictions = resolve_path(config["predictions"])
     manifest = resolve_path(config["manifest"])
@@ -58,7 +72,7 @@ def main():
 
     print(f"Demo mode: {service.mode}; http://{args.host}:{args.port}; no training", flush=True)
     uvicorn.run(create_app(service, **settings), host=args.host, port=args.port, workers=1,
-                access_log=False)
+                access_log=False, proxy_headers=False)
 
 
 if __name__ == "__main__":

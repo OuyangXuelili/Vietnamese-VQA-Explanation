@@ -205,8 +205,14 @@ def verify_evidence(folder, annotations, predictions, study_config, canonical_al
             raise ValueError("Inference source differs from the local implementation")
     return {"manifests": manifests, "training": reports,
             "training_seed": settings["m2"]["config"]["seed"],
+            "training_learning_rate": settings["m2"]["config"]["learning_rate"],
             "checkpoint_files_verified_by": "completed export manifests and saved train reports; "
                                             "weights were checked before inference"}
+
+
+def _learning_rate_label(report):
+    rate = report.get("evidence", {}).get("training_learning_rate")
+    return f" · M2/M3 LR {rate:g}" if rate is not None else ""
 
 
 def render_study_markdown(report):
@@ -214,7 +220,7 @@ def render_study_markdown(report):
     seed_label = str(training_seed) if training_seed is not None else "chưa xác minh"
     bootstrap_seed = report.get("bootstrap_seed", report["case_selection"]["seed"])
     resamples = report.get("bootstrap_resamples", 2000)
-    lines = [f"# Validation M0–M3 — seed {seed_label}", "",
+    lines = [f"# Validation M0–M3 — seed {seed_label}{_learning_rate_label(report)}", "",
              f"{report['n']:,} câu / {report['n_images']:,} ảnh. "
              "M2 và M3 cùng khởi đầu từ M1-3683, học 1.000 cặp trong ba epoch (375 update). "
              "Đây là kết quả validation của một seed, chưa phải kết quả test.", "",
@@ -261,14 +267,17 @@ def render_study_markdown(report):
 
 
 def render_study_cases(report, indexed, canonical):
+    seed = report["training_seed"]
+    seed_label = str(seed) if seed is not None else "chưa xác minh"
+    title = escape(f"Validation M0–M3 — seed {seed_label}{_learning_rate_label(report)}")
     parts = ["<!doctype html><html lang='vi'><meta charset='utf-8'>",
              "<meta name='viewport' content='width=device-width,initial-scale=1'>",
-             "<title>Validation M0–M3</title><style>body{font:16px/1.55 Arial;max-width:1200px;"
+             f"<title>{title}</title><style>body{{font:16px/1.55 Arial;max-width:1200px;"
              "margin:auto;padding:24px;color:#243442}article{border-top:1px solid #ccc;"
              "padding:24px 0}img{max-width:100%;height:300px;object-fit:contain}.outputs{"
              "display:grid;grid-template-columns:1fr 1fr;gap:20px}p{white-space:pre-wrap}"
              "section{background:#f4f6f8;padding:12px}@media(max-width:700px){.outputs{"
-             "grid-template-columns:1fr}}</style><h1>Validation M0–M3</h1><p>"
+             f"grid-template-columns:1fr}}}}</style><h1>{title}</h1><p>"
              "Ví dụ chọn theo quy tắc cố định, không phải chấm mù hoặc tỷ lệ lỗi toàn tập. "
              "EM chỉ đo khớp tham chiếu; ảnh và tham chiếu cần được đọc cùng nhau.</p>"]
     for group, ids in report["case_selection"]["ids"].items():
@@ -309,11 +318,13 @@ def save_study_figures(report, output):
     seed_label = str(training_seed) if training_seed is not None else "unverified"
     ax.set(xticks=x, xticklabels=[METRICS[n] for n in names], ylim=(0, 105),
            ylabel="Score × 100",
-           title=f"Validation · {report['n']} questions · training seed {seed_label}")
+           title=f"Validation · {report['n']} questions · training seed {seed_label}"
+                 f"{_learning_rate_label(report)}")
     ax.legend(frameon=False, ncols=4)
     fig.savefig(output / "metrics.png", dpi=180)
     plt.close(fig)
     fig, axes = plt.subplots(1, 3, figsize=(13, 4), layout="constrained", sharey=True)
+    fig.suptitle(f"Validation · training seed {seed_label}{_learning_rate_label(report)}")
     for ax, pair in zip(axes, ("m2_minus_m1", "m3_minus_m1", "m3_minus_m2"), strict=True):
         for i, metric in enumerate(names):
             stat = report["bootstrap"][pair]["metrics"][metric]
@@ -339,7 +350,8 @@ def save_case_sheets(report, image_sources, output):
                 preview = ImageOps.exif_transpose(image).convert("RGB")
                 preview.thumbnail((560, 360))
                 sheet.paste(preview, (x + (580 - preview.width) // 2, y + 30))
-            draw.text((x + 12, y + 8), f"{group} | question {qid}", fill="black")
+            draw.text((x + 12, y + 8), f"{group} | question {qid} | "
+                      f"seed {report['training_seed']}{_learning_rate_label(report)}", fill="black")
         sheet.save(output / f"cases_{group}.jpg", quality=90)
 
 

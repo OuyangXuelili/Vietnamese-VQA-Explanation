@@ -31,6 +31,14 @@ def test_check_gate_has_no_gpu_stage():
     assert all("sft-smoke" not in part for command in full for part in command)
 
 
+@pytest.mark.parametrize("source_only", [False, True])
+def test_check_gate_rejects_skips_and_declares_history_scope(source_only):
+    checks = commands(False, False, source_only=source_only)
+    assert "--fail-on-skip" in checks[1]
+    assert ("not historical" in checks[1]) is source_only
+    assert "-q" not in checks[1]
+
+
 def test_check_gate_dry_run_creates_nothing(tmp_path):
     result = subprocess.run(
         [

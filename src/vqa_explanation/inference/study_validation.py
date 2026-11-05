@@ -15,6 +15,7 @@ from vqa_explanation.inference.export import read_jsonl, validate_selected_recor
 from vqa_explanation.inference.export_relocation import (
     prepare_relocation,
     prepare_snapshot_recovery,
+    require_safe_snapshot_resume,
     snapshot_export,
     verify_relocation_group,
     write_relocation,
@@ -262,6 +263,7 @@ def baseline_arguments(environment, annotations, adapters, output_dir):
         annotations=annotations, image_root=environment["image_root"],
         output=output_dir / f"{arm}.jsonl", adapter=adapters[arm],
         split="validation", limit=0, seed=42, model_id=MODEL_ID, revision=MODEL_REVISION,
+        experiment_id=ARMS[arm],
         min_pixels=200704, max_pixels=200704, max_new_tokens=128, load_in_4bit=True,
     ) for arm in ("m0", "m1")}
 
@@ -278,6 +280,11 @@ def run_validation(environment_path, run_group, m1_adapter, output_dir, *, inspe
         stage_names=stage_names,
     )
     root, output_dir = project_root(), Path(output_dir).resolve()
+    records = read_jsonl(annotations)
+    for arm in ARMS:
+        require_safe_snapshot_resume(output_dir / f"{arm}.jsonl", records)
+        if relocate_from is not None:
+            require_safe_snapshot_resume(Path(relocate_from) / f"{arm}.jsonl", records)
     baseline = None
     if baseline_source is not None:
         baseline = prepare_baseline_reuse(
@@ -334,7 +341,6 @@ def run_validation(environment_path, run_group, m1_adapter, output_dir, *, inspe
             json.dump(training_receipt, handle, indent=2)
     if baseline is not None:
         print(json.dumps(write_baseline_reuse(baseline), ensure_ascii=False), flush=True)
-    records = read_jsonl(annotations)
     for arm, command in zip(export_arms, commands, strict=True):
         print(f"Export {arm}: all 1407 validation questions", flush=True)
 

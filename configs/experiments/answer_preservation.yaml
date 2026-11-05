@@ -1,0 +1,32 @@
+protocol_id: vqa_nle_answer_preservation_v1
+declared_on: '2026-11-05'
+status: implementation_pending_gpu
+seed: 42
+planned_seeds: [42, 43, 44]
+preferences:
+  data_locked: true
+  target_pairs: 1000
+  minimum_pairs: 1000
+  locked_pairs: 1000
+  require_visual_quality: true
+  required_review_version: 2
+  quality_review_sha256: 5f8ec683d70d8d802515c5fb518555b848be165157ddc718380a6bb447dc4fdd
+  source_split: train
+  frozen_bundle: data/preferences/vivqax_m1_3683_v2/frozen_1000_reviewed_20261015
+training:
+  m2_config: configs/training/sft_chosen_full.yaml
+  m3_config: configs/training/dpo_full.yaml
+  m4_config: configs/training/dpo_answer.yaml
+  epochs_per_branch: 3
+  effective_batch: 8
+  learning_rate: 0.00001
+  checkpoint_selection: final_epoch
+  answer_nll_weight: 0.1
+evaluation:
+  development_split: validation
+  primary_comparison: M4_DPO_ANSWER_minus_M3_DPO
+  reference_model: M1_SFT
+  inference_profile: configs/inference/legacy_fp16.yaml
+  quality_claim_requires_visual_ratings: true
+  old_test_role: previously_observed_benchmark
+  fresh_holdout_required_for_confirmation: true

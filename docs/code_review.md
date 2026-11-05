@@ -26,7 +26,7 @@ kết quả. Đọc diff, chạy test liên quan và đối chiếu output trư�
 | pytest và CI | Hành vi, regression và khả năng chạy trên môi trường sạch |
 
 Ruff và pytest/CI đã tích hợp trong repo. CI CPU dùng Python 3.10/3.11,
-dependency verification/demo và Node, với `--fail-on-skip`.
+dependency verification/demo/report và Node, với `--fail-on-skip`.
 
 Lượt 12/10 đã chạy Ruff nhóm S trên `src/` và `scripts/`; báo cáo tại
 `artifacts/code_cleanup_20261012/ruff_security.json`. Cảnh báo RNG áp dụng
@@ -36,6 +36,27 @@ luồng tương ứng; tránh sửa RNG hoặc giao thức thí nghiệm chỉ �
 
 Đối chiếu nhận xét với code và input thực tế trước khi sửa. Test chức năng
 cần kiểm hành vi; tìm chuỗi trong source chỉ dùng để kiểm cấu trúc.
+
+## Rà ngày 27/10
+
+Hai lỗi đã sửa: thiếu Matplotlib trong bộ cài local/CI, và công cụ kiểm
+COCO ghi đè bảng checksum khi ảnh thiếu/hỏng. Bảng checksum đã có hiện được
+giữ nguyên khi kiểm thất bại hoặc nội dung ảnh đổi; nếu cần tạo một bộ dữ liệu
+khác, chọn đường dẫn checksum/report mới và quản lý như một phiên bản mới.
+
+Gate `--full-data` đạt 1.460 test, audit dữ liệu và preflight đầy đủ. Bản
+source tách khỏi dữ liệu/run đạt 1.377 test, loại 83 kiểm tra historical.
+Đây là kiểm local với dependency đã cài; CI Linux chưa chạy lại trong lượt này.
+Biên bản, log, đối chiếu chỉ số và hash lịch sử nằm tại
+`artifacts/full_review_20261027/`. Không thay notebook có output hoặc run cũ.
+
+Rà tiếp trước đồng bộ phát hiện JPEG mất phần dữ liệu vẫn qua kiểm header.
+`valid_jpeg` và audit hiện giải mã cả ảnh để bắt trường hợp đó; ảnh chỉ qua
+`Image.verify()` chưa đủ chứng minh đọc được pixel. Lịch sử kiểm trước giữ
+nguyên; kết quả kiểm lại ở `artifacts/drive_sync_20261027/`.
+Gate ngày 28/10 đạt 1.464 test, không skip; audit giải mã toàn bộ ảnh tham
+chiếu và preflight đủ 29.459 câu train đều qua. Tên run và thư mục biên nhận
+dùng ngày UTC 27/10. Kết quả kiểm local không thay xác minh upload trên Drive.
 
 ## Tên file
 

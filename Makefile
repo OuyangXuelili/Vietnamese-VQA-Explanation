@@ -1,7 +1,8 @@
 .PHONY: install test lint audit check check-data check-full-data
 
 install:
-	pip install -e ".[dev]"
+	python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+	python -m pip install -e ".[dev,verification,demo,report]"
 
 test:
 	pytest

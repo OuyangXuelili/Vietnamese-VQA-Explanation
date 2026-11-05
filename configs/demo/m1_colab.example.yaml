@@ -1,0 +1,5 @@
+predictions: ${VQA_PROJECT_ROOT}/evaluation_runs/m1_epoch_sft-full_20261007_023531_870900_step3683_v1/m1.jsonl
+manifest: ${VQA_PROJECT_ROOT}/evaluation_runs/m1_epoch_sft-full_20261007_023531_870900_step3683_v1/m1.jsonl.manifest.json
+annotations: ${VQA_PROJECT_ROOT}/reports/m1_selection/frozen_checkpoint3683_v2/validation.jsonl
+selection: ${VQA_PROJECT_ROOT}/reports/m1_selection/frozen_checkpoint3683_v2/selection.json
+examples: 12

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'self'; script-src 'self'; base-uri 'none'; object-src 'none'">
+  <title>Validation · So sánh M0–M3</title>
+  <link rel="stylesheet" href="explorer.css"><script src="data.js" defer></script><script src="explorer.js" defer></script>
+</head>
+<body>
+  <header><div><span class="brand">VQA <span>/ phân tích thực nghiệm</span></span><h1>Đối chiếu ảnh và bốn đầu ra</h1><p>Bốn cấu hình Qwen2.5-VL-3B · Validation · Kết quả đã lưu, không gọi GPU</p></div><nav aria-label="Tài liệu"><a href="README.md">Báo cáo</a><a href="groups.csv" download>Bảng nhóm CSV</a><a href="transitions.svg">Biểu đồ</a></nav></header>
+  <p class="notice">EM chỉ đo khớp đáp án tham chiếu. ROUGE-L và BERTScore đo tương đồng văn bản, không xác nhận lời giải thích được ảnh hỗ trợ. Trang này không phải chấm mù và không dùng dữ liệu test.</p>
+  <section class="filters" aria-label="Bộ lọc validation">
+    <label class="search-label">Tìm câu hỏi, ID hoặc đầu ra<input id="search" type="search" placeholder="Nhập nội dung cần đối chiếu…"></label>
+    <label>Seed huấn luyện<select id="seed"><option>42</option><option>43</option><option>44</option></select></label>
+    <label>Nhóm câu hỏi<select id="type"><option value="all">Tất cả nhóm</option></select></label>
+    <label>Đối chứng với M3<select id="contrast"><option value="vs_m2">M2 · SFT chosen</option><option value="vs_m1">M1 · SFT</option></select></label>
+    <label>Chuyển khớp EM<select id="transition"><option value="all">Tất cả trạng thái</option></select></label>
+  </section>
+  <div class="count-row"><span id="count" role="status"></span><span>Nhóm theo quy tắc câu hỏi, không phải nhãn thủ công.</span></div>
+  <main>
+    <aside aria-label="Danh sách câu hỏi"><div class="list-heading"><h2>Câu hỏi</h2><span id="list-range"></span></div><div id="case-list"></div><div class="navigation"><button id="previous">← Trước</button><span id="position"></span><button id="next">Sau →</button></div></aside>
+    <section class="case-detail" id="detail" aria-label="Đối chiếu câu được chọn">
+      <div class="image-column"><div class="case-heading"><span id="qid"></span><button id="copy">Sao chép ca</button></div><img id="image" alt="Ảnh validation đang được đối chiếu"><p class="image-note">Ảnh xem trước thu nhỏ; hash ảnh gốc trong report.json.</p><h2 id="question"></h2><p class="type-label" id="case-type"></p><div class="reference"><h3>Đáp án tham chiếu</h3><p id="reference-answer"></p><details><summary>Giải thích tham chiếu</summary><p id="reference-explanation"></p></details></div><p class="small">Không sửa đầu ra để khớp đáp án. Kết quả bất lợi được giữ nguyên.</p></div>
+      <div class="output-column"><div class="output-heading"><h2>Đầu ra nguyên văn</h2><span id="contrast-status"></span></div><div id="cards"></div></div>
+    </section>
+    <p class="empty" id="empty" hidden>Không có câu khớp bộ lọc. Hãy đổi từ khóa hoặc trạng thái.</p>
+  </main>
+  <footer><span id="notification" role="status"></span><span>M0/M1 là baseline dùng chung; seed 42/43/44 chỉ là ba lần train M2/M3. Lựa chọn ví dụ không thay đổi số liệu toàn tập.</span></footer>
+</body>
+</html>

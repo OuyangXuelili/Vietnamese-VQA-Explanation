@@ -1,0 +1,5 @@
+# Full canonical metadata; only frozen preference and regression images are staged.
+annotations: /content/vqa_work/preference_images/metadata/all.jsonl
+image_root: /content/vqa_work/preference_images
+image_checksums: /content/vqa_work/preference_images/metadata/full_image_checksums.csv
+run_root: /content/drive/MyDrive/Vietnamese_VQA_NLE/runs/preferences

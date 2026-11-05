@@ -115,6 +115,38 @@ def test_plot_uses_training_seed_not_bootstrap_seed(tmp_path, monkeypatch):
     assert (tmp_path / "metrics.png").is_file()
 
 
+def test_learning_rate_labels_use_verified_evidence(tmp_path, monkeypatch):
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
+
+    predictions, annotations = study_data()
+    report = analyze_study(predictions, annotations, training_seed=42, resamples=20)
+    report["evidence"] = {"training_learning_rate": 5e-6}
+    assert "M2/M3 LR 5e-06" in render_study_markdown(report).splitlines()[0]
+    html = render_study_cases(
+        report, {a: {r["question_id"]: r for r in rows} for a, rows in predictions.items()},
+        {r["question_id"]: r for r in annotations})
+    assert "<title>Validation M0–M3 — seed 42 · M2/M3 LR 5e-06</title>" in html
+    assert "<h1>Validation M0–M3 — seed 42 · M2/M3 LR 5e-06</h1>" in html
+    assert "@media(max-width:700px){.outputs{grid-template-columns:1fr}}" in html
+    titles = []
+    original_set, original_suptitle = Axes.set, Figure.suptitle
+
+    def capture(ax, **kwargs):
+        if "title" in kwargs:
+            titles.append(kwargs["title"])
+        return original_set(ax, **kwargs)
+
+    def capture_suptitle(fig, title, **kwargs):
+        titles.append(title)
+        return original_suptitle(fig, title, **kwargs)
+
+    monkeypatch.setattr(Axes, "set", capture)
+    monkeypatch.setattr(Figure, "suptitle", capture_suptitle)
+    save_study_figures(report, tmp_path)
+    assert sum("M2/M3 LR 5e-06" in title for title in titles) == 2
+
+
 @pytest.mark.parametrize("fault", ["missing_arm", "missing_row", "duplicate", "test",
                                   "reference", "protocol", "format", "wrong_arm"])
 def test_analysis_rejects_incompatible_inputs(fault):
@@ -253,6 +285,7 @@ def test_training_and_export_evidence_is_checked_without_loading_weights(evidenc
     result = verify_evidence(*evidence)
     assert result["training"]["m3"]["global_step"] == 375
     assert result["training_seed"] == 42
+    assert result["training_learning_rate"] == 1e-5
 
 
 def test_training_seed_comes_from_verified_training_plans(evidence):

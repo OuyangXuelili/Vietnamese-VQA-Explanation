@@ -18,6 +18,7 @@ from vqa_explanation.training.preference_resume import (
     validate_resume,
 )
 from vqa_explanation.training.sft_data import VQACollator
+from vqa_explanation.utils.model_loading import quantization_kwargs
 from vqa_explanation.utils.run_provenance import source_fingerprints, utc_now
 
 RUNTIME = {
@@ -39,20 +40,32 @@ def use_bf16(cfg, cuda):
     return cfg["dtype"] == "bfloat16" or (cfg["dtype"] == "auto" and native)
 
 
-def completion_logp(model, batch):
+def completion_logp(model, batch, *, with_answer_nll=False):
     """Sum next-token log-probabilities over assistant tokens only."""
     import torch
 
     labels = batch["labels"][:, 1:]
     output = model(
-        **{key: value for key, value in batch.items() if key != "labels"}, use_cache=False
+        **{key: value for key, value in batch.items() if key not in {"labels", "answer_mask"}},
+        use_cache=False,
     )
     mask = labels != -100
     if labels.shape[0] != 1 or not torch.any(mask):
         raise ValueError("DPO requires one sample with assistant tokens")
     logits = output.logits[:, :-1][mask].float()
     targets = labels[mask]
-    return (logits.gather(-1, targets[:, None]).squeeze(-1) - torch.logsumexp(logits, dim=-1)).sum()
+    token_logp = logits.gather(-1, targets[:, None]).squeeze(-1) - torch.logsumexp(logits, dim=-1)
+    if not with_answer_nll:
+        return token_logp.sum()
+    answer_mask = batch.get("answer_mask")
+    if (answer_mask is None or answer_mask.dtype != torch.bool
+            or answer_mask.shape != batch["labels"].shape
+            or torch.any(answer_mask & (batch["labels"] == -100))):
+        raise ValueError("Answer NLL requires a boolean mask inside assistant supervision")
+    selected = answer_mask[:, 1:][mask]
+    if not torch.any(selected):
+        raise ValueError("Answer NLL requires at least one next-token answer target")
+    return token_logp.sum(), -token_logp[selected].mean()
 
 
 def dpo_loss(chosen, rejected, ref_chosen, ref_rejected, beta):
@@ -156,12 +169,7 @@ def load_policy(cfg, model_cfg, adapter, *, with_reference):
         torch_dtype=dtype,
         device_map={"": 0},
         attn_implementation=cfg["attn_implementation"],
-        quantization_config=BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_compute_dtype=dtype,
-        ),
+        quantization_config=BitsAndBytesConfig(**quantization_kwargs(dtype, double_quant=True)),
     )
     base = prepare_model_for_kbit_training(
         base,
@@ -196,6 +204,17 @@ def make_trainer_class(cfg):
             super().__init__(*args, **kwargs)
             # Trainer, not our loss, scales each microbatch by accumulation steps.
             self.model_accepts_loss_kwargs = False
+            self._component_sums = {"loss_dpo": 0.0, "loss_answer_nll": 0.0}
+            self._component_count = 0
+
+        def log(self, logs, start_time=None):
+            if "loss" in logs and self._component_count:
+                logs = {**logs, **{k: v / self._component_count
+                                  for k, v in self._component_sums.items()},
+                        "answer_nll_weight": cfg["answer_nll_weight"]}
+                self._component_sums = {k: 0.0 for k in self._component_sums}
+                self._component_count = 0
+            return super().log(logs, start_time)
 
         def _load_from_checkpoint(self, resume_from_checkpoint, model=None):
             from peft import get_peft_model_state_dict, set_peft_model_state_dict
@@ -219,12 +238,22 @@ def make_trainer_class(cfg):
             if cfg["stage"] == "sft_chosen":
                 loss, outputs = super().compute_loss(policy, inputs, return_outputs=True)
             else:
-                chosen_logp = completion_logp(policy, inputs["chosen"])
+                weight = cfg.get("answer_nll_weight", 0.0)
+                if weight:
+                    chosen_logp, answer_nll = completion_logp(
+                        policy, inputs["chosen"], with_answer_nll=True)
+                else:
+                    chosen_logp = completion_logp(policy, inputs["chosen"])
                 rejected_logp = completion_logp(policy, inputs["rejected"])
                 with torch.no_grad(), reference_adapter(policy):
                     ref_chosen = completion_logp(policy, inputs["chosen"])
                     ref_rejected = completion_logp(policy, inputs["rejected"])
                 loss = dpo_loss(chosen_logp, rejected_logp, ref_chosen, ref_rejected, cfg["beta"])
+                if weight:
+                    self._component_sums["loss_dpo"] += loss.detach().item()
+                    self._component_sums["loss_answer_nll"] += answer_nll.detach().item()
+                    self._component_count += 1
+                    loss = loss + weight * answer_nll
                 outputs = {"loss": loss}
             if not torch.isfinite(loss):
                 raise ValueError("Nonfinite training loss")
@@ -288,7 +317,10 @@ def run_stage(args):
         cfg, plan["model"], args.m1_adapter, with_reference=cfg["stage"] == "dpo"
     )
     length = cfg["max_length"] if cfg["stage"] == "sft_chosen" else cfg["preflight_max_length"]
-    sft_collator = VQACollator(processor, env["image_root"], max_length=length)
+    sft_collator = VQACollator(
+        processor, env["image_root"], max_length=length,
+        include_answer_mask=cfg.get("answer_nll_weight", 0) > 0,
+    )
     collator = PairCollator(sft_collator) if cfg["stage"] == "dpo" else sft_collator
     rows = pairs if cfg["stage"] == "dpo" else chosen
     # Check the real collator once before training, without truncating completions.
@@ -384,6 +416,9 @@ def run_stage(args):
             "loss_note": "Trainer summary; use log_history for per-update loss after resume.",
             "epoch": trainer.state.epoch,
             "training_loss": result.training_loss,
+            "objective": ("dpo_answer_nll" if cfg.get("answer_nll_weight", 0)
+                          else cfg["stage"]),
+            "answer_nll_weight": cfg.get("answer_nll_weight", 0.0),
             "metrics": result.metrics,
             "dtype": "bfloat16" if bf16 else "float16",
             "policy_updated": True,

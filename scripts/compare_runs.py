@@ -8,7 +8,7 @@ from pathlib import Path
 from vqa_explanation.data.io import read_jsonl
 from vqa_explanation.evaluation.answer_metrics import exact_match, token_f1
 from vqa_explanation.evaluation.comparison import (
-    EXPERIMENT_IDS,
+    SUPPORTED_EXPERIMENT_IDS,
     cluster_bootstrap,
     compare_predictions,
 )
@@ -94,8 +94,9 @@ def main():
                         help="Frozen full validation/test references; use with --split and hash")
     parser.add_argument("--expected-sha256")
     parser.add_argument("--split", choices=("validation", "test"))
-    parser.add_argument("--left-experiment", choices=EXPERIMENT_IDS, default="M0_PRETRAINED")
-    parser.add_argument("--right-experiment", choices=EXPERIMENT_IDS, default="M1_SFT")
+    parser.add_argument("--left-experiment", choices=SUPPORTED_EXPERIMENT_IDS,
+                        default="M0_PRETRAINED")
+    parser.add_argument("--right-experiment", choices=SUPPORTED_EXPERIMENT_IDS, default="M1_SFT")
     parser.add_argument("--checkpoint-comparison", action="store_true",
                         help="Compare two distinct M1 checkpoints on full pinned validation")
     parser.add_argument("--bootstrap-resamples", type=int, default=0)

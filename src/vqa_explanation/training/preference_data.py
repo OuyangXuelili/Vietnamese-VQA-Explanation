@@ -58,9 +58,16 @@ def load_config(path):
     if not isinstance(cfg, dict) or cfg.get("stage") not in {"sft_chosen", "dpo"}:
         raise ValueError("Expected sft_chosen or dpo config")
     fields = common | (extra if cfg["stage"] == "dpo" else set())
+    if cfg["stage"] == "dpo" and "answer_nll_weight" in cfg:
+        fields.add("answer_nll_weight")
     if set(cfg) != fields:
         raise ValueError(f"Config fields differ: {sorted(set(cfg) ^ fields)}")
     expected_id = "M2_SFT_CHOSEN" if cfg["stage"] == "sft_chosen" else "M3_DPO"
+    weight = cfg.get("answer_nll_weight", 0.0)
+    if type(weight) not in (int, float) or not math.isfinite(weight) or weight < 0:
+        raise ValueError("answer_nll_weight must be finite and nonnegative")
+    if weight:
+        expected_id = "M4_DPO_ANSWER"
     if (
         cfg["experiment_id"] != expected_id
         or cfg["checkpoint_selection"] != "final_epoch"
@@ -126,7 +133,7 @@ def validate_study_arm(config_path, study_path):
             raise ValueError(f"Study needs {arm}_config")
         paths[arm] = (project_root() / relative).resolve()
     sft, dpo = (load_config(paths[arm]) for arm in ("m2", "m3"))
-    if sft["stage"] != "sft_chosen" or dpo["stage"] != "dpo":
+    if (sft["experiment_id"] != "M2_SFT_CHOSEN" or dpo["experiment_id"] != "M3_DPO"):
         raise ValueError("Study arms must be chosen-SFT and DPO, in that order")
     matched = (
         "seed", "expected_pairs", "learning_rate", "num_train_epochs",
@@ -158,8 +165,27 @@ def validate_study_arm(config_path, study_path):
     if batch != training.get("effective_batch"):
         raise ValueError("Config differs from study: effective_batch")
     selected = load_config(config_path)
-    arm = "m2" if selected["stage"] == "sft_chosen" else "m3"
-    if selected != (sft if arm == "m2" else dpo):
+    configs = {"m2": sft, "m3": dpo}
+    if "m4_config" in training:
+        relative = training["m4_config"]
+        if not isinstance(relative, str) or not relative.strip():
+            raise ValueError("Study needs m4_config")
+        paths["m4"] = (project_root() / relative).resolve()
+        regularized = load_config(paths["m4"])
+        if regularized["experiment_id"] != "M4_DPO_ANSWER":
+            raise ValueError("m4 requires positive answer NLL regularization")
+        for field in (*matched, "preflight_max_length", "beta"):
+            baseline = dpo if field in {"preflight_max_length", "beta"} else sft
+            if regularized[field] != baseline[field]:
+                raise ValueError(f"Comparison arms differ: {field}")
+        declared_weight = training.get("answer_nll_weight")
+        if (type(declared_weight) not in (int, float)
+                or declared_weight != regularized["answer_nll_weight"]):
+            raise ValueError("Config differs from study: answer_nll_weight")
+        configs["m4"] = regularized
+    arm = ("m4" if selected["experiment_id"] == "M4_DPO_ANSWER"
+           else "m2" if selected["stage"] == "sft_chosen" else "m3")
+    if arm not in configs or selected != configs[arm]:
         raise ValueError(f"Selected config is not the declared {arm} arm")
     return {
         "protocol_id": study["protocol_id"],

@@ -28,19 +28,37 @@ giữ nguyên. Không cập nhật template đè lên notebook đang chạy.
 
 ## Local
 
-Python 3.10+ và `.[dev]` đủ cho audit và các test nhẹ. Kiểm trainer nhỏ dùng
-Torch/Torchvision CPU rồi `.[dev,verification]`; kiểm API/demo thêm `[demo]`.
+Python 3.10+; cài Torch/Torchvision CPU, `.[dev,verification,demo,report]` và Node 22
+theo [hướng dẫn local](../README.md#local). `.[dev]` chỉ đủ cho audit và
+một phần test, không đủ để báo cổng kiểm đầy đủ đã đạt.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/check_project.py
 .\.venv\Scripts\python.exe scripts/run_pipeline.py preflight --environment configs/environments/local_full.yaml --all-train-records
 ```
 
+Lệnh trên kiểm cả artifact lịch sử trên máy này. Checkout mới không có
+run ngoài Git dùng `scripts/check_project.py --source-only`; chỉ loại nhóm
+`historical`, không cho skip kiểm source vì thiếu thư viện. Cả hai chế độ
+đều dùng `--fail-on-skip`.
+
 Máy hiện tại đã có 28.180 ảnh ViVQA-X. Quy trình lấy dữ liệu trên máy mới ở
 [data_protocol.md](data_protocol.md). Môi trường CPU phục vụ các kiểm tra
 nhỏ; runtime GPU cần nghiệm thu riêng với Qwen/QLoRA.
 
 ## Source và môi trường GPU
+
+Kho Drive giữ dữ liệu và lịch sử chạy, không phải một checkout Git được
+đồng bộ tự động. Mã dùng để chạy lấy từ `source/releases/<release>.zip`,
+đối chiếu SHA-256 với record của stage. Các script rời, `project_source.zip`
+và ghi chú cũ trong `source/` là hồ sơ lịch sử; không lấy tên hoặc ngày sửa
+của chúng để suy ra source mới nhất.
+
+Notebook trong Drive có thể chứa output và cấu hình của một phiên đã chạy;
+template trong source để chuẩn bị phiên mới. Không chép template đè notebook
+có output, không đổi release của run cũ khi đồng bộ source mới. Báo cáo
+phân tích tạo trên local nằm ngoài ZIP source và phải lưu riêng nếu cần
+đọc lại trên Drive. Xem `artifacts/README.md` để tìm bản hiện hành.
 
 1. Đóng source bằng `scripts/package_source.py`, lưu ZIP và SHA-256.
 2. Upload vào Drive `source/releases/`; tải lại ZIP để đối chiếu hash.

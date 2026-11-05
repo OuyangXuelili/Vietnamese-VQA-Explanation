@@ -19,6 +19,7 @@ ROOT_FILES = (
     "requirements-demo.txt",
     "requirements-cloud-preference.txt",
     "requirements-cloud-semantic.txt",
+    "requirements-cloud-demo.txt",
     "Makefile",
     ".gitignore",
     ".gitattributes",
@@ -28,7 +29,11 @@ ROOT_FILES = (
 SOURCE_FOLDERS = ("src", "scripts", "configs", "tests", "docs", "notebooks", "app")
 SOURCE_SUFFIXES = {".py", ".yaml", ".yml", ".md", ".ipynb", ".txt", ".html", ".css", ".js"}
 SOURCE_NOTEBOOKS = {"notebooks/04_train_preferences.ipynb",
-                    "notebooks/05_evaluate_preferences.ipynb"}
+                    "notebooks/05_evaluate_preferences.ipynb",
+                    "notebooks/06_demo_live.ipynb",
+                    "notebooks/07_demo_web.ipynb",
+                    "notebooks/08_evaluate_test.ipynb",
+                    "notebooks/09_train_answer_preservation.ipynb"}
 SAMPLE_FILES = ("data/sample/vivqax_sample.jsonl", "data/sample/preference_sample.jsonl")
 REQUIRED_FILES = {
     "pyproject.toml",

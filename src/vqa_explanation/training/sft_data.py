@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from vqa_explanation.data.formatting import format_target
+from vqa_explanation.data.formatting import ANSWER_TAG, format_target
 from vqa_explanation.data.schema import VQASample
 from vqa_explanation.inference.prompting import SYSTEM_PROMPT, build_user_prompt
 
@@ -74,6 +74,22 @@ def assistant_labels(full: list[int], prompt: list[int], image_ids: set[int]) ->
     return labels
 
 
+def answer_token_mask(offsets, labels, start, end):
+    """Select supervised tokens overlapping the answer's character span."""
+    if (type(start) is not int or type(end) is not int or not 0 <= start < end
+            or len(offsets) != len(labels)):
+        raise ValueError("Invalid answer span or token offsets")
+    mask = []
+    for offset, label in zip(offsets, labels, strict=True):
+        if (len(offset) != 2 or any(type(n) is not int for n in offset)
+                or not 0 <= offset[0] <= offset[1]):
+            raise ValueError("Invalid token offset")
+        mask.append(label != -100 and offset[1] > start and offset[0] < end)
+    if not any(mask):
+        raise ValueError("Answer has no supervised tokens")
+    return mask
+
+
 class VQACollator:
     """Single-image supervision; reuse the image grid when encoding the prompt."""
 
@@ -85,6 +101,7 @@ class VQACollator:
         *,
         reuse_image_grid: bool = True,
         return_tensors: str = "pt",
+        include_answer_mask: bool = False,
     ):
         if return_tensors not in {"pt", "np"}:
             raise ValueError("return_tensors must be pt or np")
@@ -93,6 +110,7 @@ class VQACollator:
         self.max_length = max_length
         self.reuse_image_grid = reuse_image_grid
         self.return_tensors = return_tensors
+        self.include_answer_mask = include_answer_mask
         vocab = processor.tokenizer.get_vocab()
         self.image_ids = {
             vocab[token]
@@ -105,19 +123,13 @@ class VQACollator:
             if token in vocab
         }
 
-    def _prompt_ids(self, prompt, image, batch):
-        if not self.reuse_image_grid:
-            return self.processor(
-                text=[prompt],
-                images=[image],
-                return_tensors=self.return_tensors,
-            )["input_ids"][0].tolist()
+    def _expand_image_tokens(self, text, batch):
         # Qwen2.5-VL 4.57.6 expands each image placeholder using this grid.
         # Calling the processor without images retains its tokenizer defaults.
         token = self.processor.image_token
         grid = batch["image_grid_thw"].tolist()
         merge_size = self.processor.image_processor.merge_size
-        if prompt.count(token) != 1 or len(grid) != 1:
+        if text.count(token) != 1 or len(grid) != 1:
             raise ValueError("Prompt must contain exactly one image and one image grid")
         if len(grid[0]) != 3 or any(type(n) is not int or n <= 0 for n in grid[0]):
             raise ValueError("Invalid image grid")
@@ -126,9 +138,15 @@ class VQACollator:
         patches = prod(grid[0])
         if patches % (merge_size**2):
             raise ValueError("Image grid is not divisible by merge size")
-        expanded = prompt.replace(token, token * (patches // merge_size**2), 1)
+        return text.replace(token, token * (patches // merge_size**2), 1)
+
+    def _prompt_ids(self, prompt, image, batch):
+        if not self.reuse_image_grid:
+            return self.processor(
+                text=[prompt], images=[image], return_tensors=self.return_tensors,
+            )["input_ids"][0].tolist()
         return self.processor(
-            text=[expanded],
+            text=[self._expand_image_tokens(prompt, batch)],
             return_tensors=self.return_tensors,
         )["input_ids"][0].tolist()
 
@@ -163,12 +181,33 @@ class VQACollator:
                 "reduce image resolution or raise max_length; do not truncate image tokens"
             )
         labels = assistant_labels(full_ids, prompt_ids, self.image_ids)
+        answer_mask = None
+        if self.include_answer_mask:
+            if not full.startswith(prompt + target):
+                raise ValueError("Answer supervision requires an exact text template boundary")
+            try:
+                encoded = self.processor(
+                    text=[self._expand_image_tokens(full, batch)],
+                    return_tensors=self.return_tensors, return_offsets_mapping=True,
+                )
+            except (NotImplementedError, TypeError) as error:
+                raise ValueError("Answer supervision requires tokenizer offsets") from error
+            if encoded["input_ids"][0].tolist() != full_ids:
+                raise ValueError("Answer offsets differ from the image-conditioned token sequence")
+            start = len(self._expand_image_tokens(prompt, batch)) + len(ANSWER_TAG) + 1
+            end = start + len(VQASample.from_dict(record).answer.strip())
+            answer_mask = answer_token_mask(
+                encoded["offset_mapping"][0].tolist(), labels, start, end)
         if self.return_tensors == "pt":
             import torch
 
             batch["labels"] = torch.tensor([labels], dtype=torch.long)
+            if answer_mask is not None:
+                batch["answer_mask"] = torch.tensor([answer_mask], dtype=torch.bool)
         else:
             import numpy as np
 
             batch["labels"] = np.asarray([labels], dtype=np.int64)
+            if answer_mask is not None:
+                batch["answer_mask"] = np.asarray([answer_mask], dtype=np.bool_)
         return batch

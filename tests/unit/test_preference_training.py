@@ -309,7 +309,7 @@ def test_reference_restored_after_error(tmp_path):
     trainable_policy_only(model)
 
 
-@pytest.mark.parametrize("stage", ["dpo", "sft_chosen"])
+@pytest.mark.parametrize("stage", ["dpo", "sft_chosen", "dpo_answer"])
 def test_real_cpu_trainer_updates_policy_not_reference_and_saves(tmp_path, stage):
     torch = pytest.importorskip("torch")
     pytest.importorskip("peft")
@@ -336,7 +336,9 @@ def test_real_cpu_trainer_updates_policy_not_reference_and_saves(tmp_path, stage
         "attention_mask": torch.ones(1, 4, dtype=torch.long),
         "labels": torch.tensor([[-100, -100, 8, 11]]),
     }
-    batch = {"chosen": chosen, "rejected": rejected} if stage == "dpo" else chosen
+    if stage == "dpo_answer":
+        chosen["answer_mask"] = torch.tensor([[False, False, True, False]])
+    batch = {"chosen": chosen, "rejected": rejected} if stage != "sft_chosen" else chosen
     args = TrainingArguments(
         output_dir=str(tmp_path / "training"),
         use_cpu=True,
@@ -351,8 +353,12 @@ def test_real_cpu_trainer_updates_policy_not_reference_and_saves(tmp_path, stage
         report_to="none",
         disable_tqdm=True,
         dataloader_pin_memory=False,
+        logging_steps=1,
     )
-    trainer = make_trainer_class({"stage": stage, "beta": 0.1})(
+    cfg = {"stage": "dpo" if stage == "dpo_answer" else stage, "beta": 0.1}
+    if stage == "dpo_answer":
+        cfg["answer_nll_weight"] = 0.1
+    trainer = make_trainer_class(cfg)(
         model=model,
         args=args,
         train_dataset=[{"row": i} for i in range(4)],
@@ -362,7 +368,15 @@ def test_real_cpu_trainer_updates_policy_not_reference_and_saves(tmp_path, stage
     loss = trainer.compute_loss(model, batch)
     if stage == "dpo":
         assert loss.item() == pytest.approx(math.log(2), abs=1e-6)
+    if stage == "dpo_answer":
+        from vqa_explanation.training.preference import completion_logp
+
+        _, nll = completion_logp(model, chosen, with_answer_nll=True)
+        assert loss.item() == pytest.approx(math.log(2) + 0.1 * nll.item(), abs=1e-6)
     result = trainer.train()
+    if stage == "dpo_answer":
+        components = [r for r in trainer.state.log_history if "loss_answer_nll" in r]
+        assert components and all(math.isfinite(r["loss_answer_nll"]) for r in components)
     assert trainer.state.global_step == 2 and math.isfinite(result.training_loss)
     verify_reference(model, frozen)
     after = get_peft_model_state_dict(model, adapter_name="default")
@@ -410,7 +424,7 @@ def test_selection_cannot_claim_test_as_validation(tmp_path):
         validate_selection(path, {}, {"id": "model", "revision": "rev"}, "a" * 64, [])
 
 
-@pytest.mark.parametrize("stage", ["sft_chosen", "dpo"])
+@pytest.mark.parametrize("stage", ["sft_chosen", "dpo", "dpo_answer"])
 def test_interrupted_training_matches_continuous_weights_and_scheduler(tmp_path, stage):
     torch = pytest.importorskip("torch")
     from peft import get_peft_model_state_dict
@@ -435,7 +449,9 @@ def test_interrupted_training_matches_continuous_weights_and_scheduler(tmp_path,
                   "labels": torch.tensor([[-100, -100, token, 12]])}
         rejected = {**chosen, "input_ids": torch.tensor([[1, 2, 5, 6]]),
                     "labels": torch.tensor([[-100, -100, 5, 6]])}
-        return {"chosen": chosen, "rejected": rejected} if stage == "dpo" else chosen
+        if stage == "dpo_answer":
+            chosen["answer_mask"] = torch.tensor([[False, False, True, False]])
+        return {"chosen": chosen, "rejected": rejected} if stage != "sft_chosen" else chosen
 
     def trainer(name, stop=None):
         folder = tmp_path / name
@@ -451,7 +467,10 @@ def test_interrupted_training_matches_continuous_weights_and_scheduler(tmp_path,
             remove_unused_columns=False, report_to="none", disable_tqdm=True,
             dataloader_pin_memory=False,
         )
-        return make_trainer_class({"stage": stage, "beta": 0.1})(
+        cfg = {"stage": "dpo" if stage == "dpo_answer" else stage, "beta": 0.1}
+        if stage == "dpo_answer":
+            cfg["answer_nll_weight"] = 0.1
+        return make_trainer_class(cfg)(
             model=model, args=args, train_dataset=rows, data_collator=collate,
             callbacks=[checkpoint_callback(identity, stop)],
         )

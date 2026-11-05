@@ -7,7 +7,7 @@ from pathlib import Path
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", choices=("preference", "semantic"), required=True)
+    parser.add_argument("--profile", choices=("preference", "semantic", "demo"), required=True)
     parser.add_argument("--environment-dir", type=Path, required=True)
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]

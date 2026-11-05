@@ -1,4 +1,4 @@
-"""Run matched M2/M3 stages or inspect their inputs without a GPU."""
+"""Run declared preference stages or inspect their inputs without a GPU."""
 
 import argparse
 import json

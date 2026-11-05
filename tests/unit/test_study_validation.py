@@ -70,6 +70,25 @@ def test_export_is_resumable_but_new_runs_do_not_use_resume(inputs):
     assert "--resume" in result["commands"][0]
 
 
+@pytest.mark.parametrize("inspect_only", [False, True])
+@pytest.mark.parametrize("arm", ["m0", "m1", "m2", "m3"])
+def test_recovery_guard_runs_before_any_export_or_receipt(inputs, monkeypatch, inspect_only, arm):
+    calls = []
+
+    def guard(path, records):
+        calls.append(path.stem)
+        assert len(records) == 1407
+        if path.stem == arm:
+            raise ValueError("Recovery required")
+
+    monkeypatch.setattr(study, "require_safe_snapshot_resume", guard)
+    with pytest.raises(ValueError, match="Recovery required"):
+        study.run_validation(*inputs, inspect_only=inspect_only,
+                             runner=lambda *a, **kw: pytest.fail("must not load a model"))
+    assert arm in calls
+    assert not inputs[-1].exists()
+
+
 @pytest.mark.parametrize("target", ["m1", "m2", "m3"])
 def test_changed_adapter_blocks_every_export(inputs, target):
     adapter = inputs[2] if target == "m1" else inputs[1] / f"{target}_train/training/checkpoint-24"

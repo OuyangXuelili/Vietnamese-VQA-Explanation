@@ -12,7 +12,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--launch-record", type=Path, required=True)
     parser.add_argument("--project-dir", type=Path, required=True)
-    parser.add_argument("--arm", choices=("m2", "m3"), required=True)
+    parser.add_argument("--arm", choices=("m2", "m3", "m4"), required=True)
     parser.add_argument("--mode", choices=("inspect", "gate", "train"), default="inspect")
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--gpu-gate", type=Path)

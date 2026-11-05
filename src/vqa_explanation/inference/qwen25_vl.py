@@ -6,8 +6,14 @@ from pathlib import Path
 
 from PIL import Image
 
+from vqa_explanation.inference.generation_safety import guard_model_outputs
 from vqa_explanation.inference.prompting import SYSTEM_PROMPT, build_user_prompt
 from vqa_explanation.training.sft import supports_native_bf16
+from vqa_explanation.utils.model_loading import (
+    quantization_kwargs,
+    resolve_dtype,
+    validate_loading_profile,
+)
 
 
 class Qwen25VLRunner:
@@ -22,6 +28,7 @@ class Qwen25VLRunner:
         min_pixels: int = 256 * 28 * 28,
         max_pixels: int = 1024 * 28 * 28,
         adapter_path: str | None = None,
+        loading_profile: dict | None = None,
     ) -> None:
         try:
             import torch
@@ -35,14 +42,16 @@ class Qwen25VLRunner:
                 'Install the training dependencies with: pip install -e ".[train]"'
             ) from exc
 
-        dtype = torch.bfloat16 if supports_native_bf16(torch.cuda) else torch.float16
+        profile = validate_loading_profile(loading_profile if loading_profile is not None else {
+            "dtype": "auto", "double_quant": False, "attention": "sdpa",
+        })
+        if profile["double_quant"] and not load_in_4bit:
+            raise ValueError("double_quant requires load_in_4bit")
+        dtype = resolve_dtype(torch, profile["dtype"], native_bf16=supports_native_bf16(torch.cuda))
         quantization_config = None
         if load_in_4bit:
             quantization_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=dtype,
-            )
+                **quantization_kwargs(dtype, double_quant=profile["double_quant"]))
 
         self.processor = AutoProcessor.from_pretrained(
             model_id,
@@ -56,7 +65,7 @@ class Qwen25VLRunner:
             device_map="auto",
             torch_dtype=dtype,
             quantization_config=quantization_config,
-            attn_implementation="sdpa",
+            attn_implementation=profile["attention"],
         )
         if adapter_path:
             from peft import PeftModel
@@ -69,6 +78,8 @@ class Qwen25VLRunner:
         self.max_pixels = max_pixels
         self.load_in_4bit = load_in_4bit
         self.compute_dtype = str(dtype)
+        self.loading_profile = ({**profile, "dtype": str(dtype).removeprefix("torch.")}
+                                if loading_profile is not None else None)
 
     def protocol_metadata(self, max_new_tokens: int) -> dict:
         """Return the loaded prompt template and generation settings used for inference."""
@@ -82,7 +93,7 @@ class Qwen25VLRunner:
         digest = hashlib.sha256(
             json.dumps(prompt_spec, ensure_ascii=False, sort_keys=True).encode("utf-8")
         ).hexdigest()
-        return {
+        metadata = {
             "min_pixels": self.min_pixels,
             "max_pixels": self.max_pixels,
             "max_new_tokens": max_new_tokens,
@@ -91,6 +102,15 @@ class Qwen25VLRunner:
             "generation_config": generation,
             "compute_dtype": self.compute_dtype,
         }
+        if getattr(self, "loading_profile", None) is not None:
+            metadata["model_loading"] = dict(self.loading_profile)
+            image_processor = getattr(self.processor, "image_processor", None)
+            if image_processor is not None:
+                spec = {"class": type(image_processor).__name__,
+                        "config": image_processor.to_dict()}
+                metadata["image_processor_sha256"] = hashlib.sha256(
+                    json.dumps(spec, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+        return metadata
 
     def generate(self, image_path: Path, question: str, *, max_new_tokens: int = 128) -> str:
         messages = [
@@ -112,7 +132,7 @@ class Qwen25VLRunner:
             image = opened.convert("RGB")
         inputs = self.processor(text=[prompt], images=[image], return_tensors="pt")
         inputs = inputs.to(self.model.device)
-        with self.torch.inference_mode():
+        with self.torch.inference_mode(), guard_model_outputs(self.model, self.torch):
             generated = self.model.generate(
                 **inputs,
                 do_sample=False,

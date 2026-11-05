@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 
+from vqa_explanation.inference import study_validation as study
 from vqa_explanation.inference.baseline_reuse import (
     BASELINE_FILES,
     prepare_baseline_reuse,
@@ -67,6 +68,38 @@ def test_reuse_preserves_source_bytes_and_skips_model_loading(baselines):
     before = {path.name: path.stat().st_mtime_ns for path in output.iterdir()}
     write_baseline_reuse(prepare_baseline_reuse(source, hashes, arguments))
     assert before == {path.name: path.stat().st_mtime_ns for path in output.iterdir()}
+
+
+@pytest.mark.parametrize("inspect_only", [True, False])
+def test_study_reuses_real_baselines_with_its_own_arguments(
+    baselines, monkeypatch, inspect_only,
+):
+    source, hashes, arguments, output = baselines
+    args = arguments["m1"]
+    environment = {"image_root": args.image_root}
+    adapters = {"m0": None, "m1": args.adapter, "m2": args.adapter, "m3": args.adapter}
+    monkeypatch.setattr(study, "MODEL_ID", args.model_id)
+    monkeypatch.setattr(study, "MODEL_REVISION", args.revision)
+    monkeypatch.setattr(study, "prepare_validation", lambda *a, **kw: (
+        environment, args.annotations, adapters, {},
+    ))
+    calls = []
+    result = study.run_validation(
+        None, None, None, output, baseline_source=source, baseline_sha256=hashes,
+        inspect_only=inspect_only, runner=lambda command, **kwargs: calls.append(command),
+    )
+    assert {arm: evidence["predictions"] for arm, evidence in
+            result["baseline_reuse"]["arms"].items()} == {"m0": 3, "m1": 3}
+    commands = result["commands"] if inspect_only else calls[:2]
+    assert [command[command.index("--experiment-id") + 1] for command in commands] == [
+        "M2_SFT_CHOSEN", "M3_DPO"]
+    assert len(calls) == (0 if inspect_only else 6)
+    if inspect_only:
+        assert not output.exists()
+    else:
+        assert all((output / name).read_bytes() == (source / name).read_bytes()
+                   for name in hashes)
+        assert (output / "baseline_reuse.json").is_file()
 
 
 @pytest.mark.parametrize("fault", ["missing", "extra", "invalid", "checksum", "absent"])

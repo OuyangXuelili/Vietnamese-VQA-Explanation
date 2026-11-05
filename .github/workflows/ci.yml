@@ -16,8 +16,8 @@ jobs:
         with:
           node-version: "22"
       - run: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-      - run: pip install -e ".[dev,verification,demo]"
-      - run: python -c "import torch, torchvision, transformers, accelerate, peft, fastapi, httpx"
+      - run: pip install -e ".[dev,verification,demo,report]"
+      - run: python -c "import torch, torchvision, transformers, accelerate, peft, fastapi, httpx, matplotlib"
       - run: ruff check .
       - run: python -m pytest -m "not historical" --fail-on-skip
     strategy:
