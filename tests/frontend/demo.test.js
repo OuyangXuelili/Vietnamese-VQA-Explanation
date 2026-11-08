@@ -247,3 +247,81 @@ test('failed reads and unknown backend modes do not enable inference', async () 
   assert.equal(bad.element('question').disabled, true);
   assert.equal(bad.element('connection').dataset.state, 'error');
 });
+
+test('network failure exposes reconnect and preserves the image and question', async () => {
+  const h = await page();
+  await h.upload({name: 'photo', type: 'image/png', size: 100});
+  h.readers[0].onload(); h.question('Ảnh màu gì?');
+  h.setFetch(async () => { throw new TypeError('fetch failed'); });
+  await h.element('ask').listeners.click();
+  assert.equal(h.element('connection').dataset.state, 'error');
+  assert.equal(h.element('reconnect').hidden, false);
+  assert.equal(h.element('ask').disabled, true);
+  assert.equal(h.element('question').value, 'Ảnh màu gì?');
+  assert.equal(h.element('question-hint').textContent, 'Kết nối lại để tiếp tục');
+  assert.match(h.element('error').textContent, /Kiểm tra lại/);
+  assert.equal(h.element('preview').src, 'blob:photo');
+  assert.equal(h.element('history-list').children.length, 0);
+  h.setFetch(async url => ({ok: true, status: 200, json: async () => url === 'api/info' ? info : result}));
+  await h.element('reconnect').listeners.click();
+  await tick();
+  assert.equal(h.element('connection').dataset.state, 'ready');
+  assert.equal(h.element('reconnect').hidden, true);
+  assert.equal(h.element('error').hidden, true);
+  assert.equal(h.element('ask').disabled, false);
+  await h.element('ask').listeners.click();
+  assert.deepEqual(JSON.parse(h.calls.at(-1)[1].body), {image_base64: 'photo', question: 'Ảnh màu gì?'});
+  assert.equal(h.element('answer').textContent, 'xanh');
+});
+
+test('an expired proxy reveals reconnect after a submitted question', async () => {
+  const h = await page();
+  await h.upload({name: 'photo', type: 'image/png', size: 100});
+  h.readers[0].onload(); h.question('Ảnh màu gì?');
+  h.setFetch(async () => ({ok: false, status: 403, json: async () => { throw new SyntaxError('HTML'); }}));
+  await h.element('ask').listeners.click();
+  assert.equal(h.element('connection').dataset.state, 'error');
+  assert.equal(h.element('reconnect').hidden, false);
+  assert.match(h.element('error').textContent, /Phiên GPU chưa phản hồi đúng/);
+});
+
+test('timeout during response body retains the timeout explanation', async () => {
+  const h = await page();
+  h.setFetch(async (url, options) => ({ok: true, status: 200, json: () => new Promise((resolve, reject) => {
+    options.signal.addEventListener('abort', () => {
+      const error = new Error('aborted'); error.name = 'AbortError'; reject(error);
+    });
+  })}));
+  const pending = h.context.api('api/predict');
+  await tick(); h.fireTimers();
+  await assert.rejects(pending, /Quá thời gian chờ/);
+});
+
+
+test('JSON authentication failures expose reconnect without losing the upload', async () => {
+  for (const status of [401, 403]) {
+    const h = await page();
+    await h.upload({name: 'photo', type: 'image/png', size: 100});
+    h.readers[0].onload(); h.question('Ảnh màu gì?');
+    h.setFetch(async () => ({ok: false, status, json: async () => ({detail: 'Cần đăng nhập lại'})}));
+    await h.element('ask').listeners.click();
+    assert.equal(h.element('connection').dataset.state, 'error');
+    assert.equal(h.element('reconnect').hidden, false);
+    assert.equal(h.element('preview').src, 'blob:photo');
+  }
+});
+
+test('a recoverable GPU error keeps the session ready for a new request', async () => {
+  const h = await page();
+  await h.upload({name: 'photo', type: 'image/png', size: 100});
+  h.readers[0].onload(); h.question('Ảnh màu gì?');
+  h.setFetch(async () => ({ok: false, status: 503, json: async () => ({detail: 'Lỗi số học NaN/Inf'})}));
+  await h.element('ask').listeners.click();
+  assert.equal(h.element('connection').dataset.state, 'ready');
+  assert.equal(h.element('reconnect').hidden, true);
+  assert.equal(h.element('ask').disabled, false);
+  assert.match(h.element('error').textContent, /NaN\/Inf/);
+  h.setFetch(async () => ({ok: true, status: 200, json: async () => result}));
+  await h.element('ask').listeners.click();
+  assert.equal(h.element('answer').textContent, 'xanh');
+});

@@ -3,15 +3,21 @@
 Chốt phạm vi ngày 14/10/2026. Đề tài: nghiên cứu cải thiện lời giải thích
 trong hỏi đáp hình ảnh tiếng Việt.
 
-## Trạng thái ngày 1/11/2026
+## Trạng thái ngày 7/11/2026
 
 - Sáu lượt train M2/M3, validation, đối chứng đổi ảnh và LR đã hoàn tất.
 - Test đủ tám identity và 15.744 prediction; metric tự động, SD ba seed
   và CI từng seed đã kiểm lại. Không còn lượt xuất test chính bị thiếu.
 - Demo M1 đã chạy ảnh thật; guard NaN/Inf và nạp lại đã qua T4 ngày 31/10.
-- [Bản thảo báo cáo](../reports/thesis/report.md) tiếp tục cấu trúc cũ,
-  có bảng test, hai biểu đồ và thảo luận. Bản Word theo mẫu trường còn
-  cần hoàn thiện định dạng; chưa thay khung báo cáo bằng một mẫu mới.
+- [Báo cáo Google Docs](https://docs.google.com/document/d/1Gt2MX9FmRNixUExeFrE3OtSnqUrIeWenyT60MoFV4CU/edit)
+  đã bổ sung bảng kết quả và sửa số trang. Bản xuất ngày 5/11 có 37 trang.
+  [Bản thảo local](../reports/thesis/report.md) và slide ngày 1/11 cần cập
+  nhật theo bản này khi chốt nội dung. Phiếu giao nhiệm vụ và phân công
+  nhóm còn chờ xác nhận.
+- M4 seed 42 đã train đủ 375 update. Đánh giá M1/M3/M4 hoàn tất trên
+  1.407 câu validation. M4 tăng BERTScore so với M3, chưa có bằng chứng
+  cải thiện EM. [Bảng và CI](answer_preservation.md#kết-quả-validation).
+- Bổ sung [phân tích lỗi ngôn ngữ](language_errors.md) vào chương kết quả.
 - Phần đánh giá theo ảnh bởi người vẫn thiếu: luyện tiêu chí, chấm gói
   cố định, tính hỗ trợ và đồng thuận từ nhãn thật. Sau đó bổ sung báo cáo
   và slide. Hiện chưa cần mở thêm lượt train hoặc backbone.
@@ -287,10 +293,11 @@ thật; chưa upload thì ghi local-only.
 ## Nghiên cứu bổ sung — 5/11/2026
 
 Triển khai M4: DPO cộng NLL riêng phần đáp án, giữ cùng dữ liệu, M1,
-LR và ngân sách update của M3. Cấu hình hiện dành cho seed 42; mới có
-code/kiểm CPU, chưa có kết quả GPU hoặc chất lượng. Study riêng ở
-`configs/experiments/answer_preservation.yaml`; thiết kế và điều kiện
-chuyển sang train tại [answer_preservation.md](answer_preservation.md).
+LR và ngân sách update của M3. Seed 42 đã hoàn tất 375 update / ba epoch
+trên T4 ngày 5/11. Validation ngày 7/11 cho thấy BERTScore tăng nhưng
+EM chưa cải thiện so với M3. Ưu tiên chấm theo ảnh cho nghiên cứu chính
+trước khi quyết định mở thêm seed M4. Thiết kế và kết quả ở
+[answer_preservation.md](answer_preservation.md).
 
 Đối chứng đầu tiên giữ bộ 1.000 cặp để cô lập thay đổi loss. Việc nâng
 chất lượng cặp sẽ là lượt riêng. M4 phát triển trên validation; test cũ

@@ -13,6 +13,18 @@ Bốn bộ output để chấm dùng M0/M1 và M2/M3 có seed huấn luyện 42 
 trước. Seed của phép bootstrap cũng là 42 nhưng chỉ điều khiển lấy mẫu
 tính khoảng tin cậy, không tạo thêm lần huấn luyện.
 
+## Xem kết quả đã rà
+
+- [200 ảnh test và 800 đầu ra](../artifacts/output_review/test_200_20261031/index.html).
+- [30 ảnh validation sau M4](../artifacts/output_review/m4_validation_30_20261107/index.html),
+  gồm 90 đầu ra M1/M3/M4. Dùng lại 60 đánh giá có sẵn sau khi đối chiếu
+  nguyên văn M1/M3, bổ sung 30 đánh giá M4 theo cùng hướng dẫn.
+
+Các trang hiển thị kết quả và ghi chú theo ảnh, bỏ trường tên người chấm.
+Nguồn và phương pháp được lưu trong hồ sơ kỹ thuật đi kèm. Các số đếm
+từ phần tự rà dùng để phân tích lỗi. Nhãn đánh giá độc lập ở phần dưới
+vẫn được theo dõi riêng.
+
 ## Gói chấm hiện hành ngày 1/11
 
 Mở `artifacts/human_evaluation/review_delivery_20261101/index.html` để vào

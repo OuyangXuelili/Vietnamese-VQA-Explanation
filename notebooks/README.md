@@ -12,6 +12,7 @@ run mới lấy từ source release, không chép đè lên tệp đó.
 | [07_demo_web.ipynb](07_demo_web.ipynb) | Mở web hỏi ảnh mới trên T4: 7 ô, gồm 5 ô code |
 | [08_evaluate_test.ipynb](08_evaluate_test.ipynb) | Xuất/resume tám identity test: 11 ô, gồm 7 ô code |
 | [09_train_answer_preservation.ipynb](09_train_answer_preservation.ipynb) | Thí nghiệm M4: 13 ô, gồm 8 ô code |
+| [10_evaluate_answer_preservation.ipynb](10_evaluate_answer_preservation.ipynb) | Validation M1/M3/M4 cùng profile: 13 ô, gồm 9 ô code |
 
 04/05 dùng lại cho các lượt sau. Chọn launch record và seed ở đầu,
 không tạo notebook mới theo từng seed hoặc mỗi lần mất phiên.
@@ -43,7 +44,7 @@ mặc định chưa chạy GPU. Không chạy 06 song song với export trong 05
 Ba ảnh validation được cố định ngoài 12 ví dụ replay, không chọn theo chất lượng.
 Luồng này không thay việc kiểm giao diện và thử ảnh ngoài dataset.
 
-Source ZIP chỉ gồm sáu template trong bảng trên và từ chối đóng gói nếu
+Source ZIP gồm bảy template trong bảng trên và từ chối đóng gói nếu
 template còn output hoặc execution count. Notebook archive giữ nguyên;
 test đọc archive thuộc nhóm `historical`, được chạy trong bộ kiểm local đầy đủ.
 
@@ -51,6 +52,10 @@ test đọc archive thuộc nhóm `historical`, được chạy trong bộ kiể
 kiểm. Nhập checksum từ receipt; mặc định chỉ inspect, chưa chạy gate/train.
 M4 được lưu ở run riêng. Các bản 04/05/08 đã có output là lịch sử của
 nghiên cứu chính, không chép template mới lên chúng.
+
+10 đánh giá M1/M3/M4 trên cùng tập validation và profile suy luận. Kiểm
+budget train, báo cáo và hash adapter trước khi bật export. Template mặc
+định tắt export và score. Chọn launch và checksum của lượt cần tiếp tục.
 
 08 dùng một launch record đã ghim source, gói đầu vào test và kế hoạch. Mỗi
 identity có thư mục output riêng trên Drive. Chạy lại cùng record để nối

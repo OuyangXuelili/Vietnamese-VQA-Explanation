@@ -1,5 +1,6 @@
 """Package selected source files in a versioned ZIP with checksums."""
 
+import argparse
 import hashlib
 import json
 import re
@@ -33,7 +34,8 @@ SOURCE_NOTEBOOKS = {"notebooks/04_train_preferences.ipynb",
                     "notebooks/06_demo_live.ipynb",
                     "notebooks/07_demo_web.ipynb",
                     "notebooks/08_evaluate_test.ipynb",
-                    "notebooks/09_train_answer_preservation.ipynb"}
+                    "notebooks/09_train_answer_preservation.ipynb",
+                    "notebooks/10_evaluate_answer_preservation.ipynb"}
 SAMPLE_FILES = ("data/sample/vivqax_sample.jsonl", "data/sample/preference_sample.jsonl")
 REQUIRED_FILES = {
     "pyproject.toml",
@@ -128,7 +130,9 @@ def verify_source_archive(archive: Path, manifest: dict[str, str]) -> None:
                 raise ValueError(f"Source archive hash mismatch: {relative}")
 
 
-def main():
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.parse_args(argv)
     root = project_root()
     files = source_files(root)
     manifest = {

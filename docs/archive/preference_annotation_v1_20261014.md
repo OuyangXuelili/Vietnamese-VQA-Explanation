@@ -186,7 +186,7 @@ Freeze xuất `accepted.jsonl`, `chosen_only.jsonl`, `manifest.json`: cùng
 ID/ảnh/đáp án/chosen cho M2/M3. Kiểm train-only, hash, prompt/canonical,
 trùng nguồn và nguồn văn bản. Schema-only `--input` không đủ để train.
 Trạng thái `validated_metadata` không thay nghiệm thu chất lượng ảnh hoặc
-GPU gate. Bước sau: [train M2/M3](preference_training.md).
+GPU gate. Bước sau: [train M2/M3](../preference_training.md).
 
 ## Tái tạo công cụ
 
@@ -200,6 +200,6 @@ Chỉ dùng khi cần bộ review mới; các artifact hiện hành đã có.
 - `attach_preference_drafts.py`, `build_preference_pilot.py`: gắn nháp và
   hàng đợi; không tạo nhãn người. Xuất nháp trước khi refresh trang.
 
-Đánh giá cuối: [chấm mù](human_evaluation.md). DPO có thể ưu tiên văn bản
+Đánh giá cuối: [chấm mù](../human_evaluation.md). DPO có thể ưu tiên văn bản
 mà ít dùng ảnh; [mDPO](https://arxiv.org/abs/2406.11839) là cơ sở nêu rủi ro,
 không phải một kiến trúc được thêm vào đồ án.

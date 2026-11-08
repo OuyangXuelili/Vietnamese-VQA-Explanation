@@ -5,6 +5,8 @@ const suggestionIds = ['suggest-object', 'suggest-place', 'suggest-action'];
 let mode = null, imageData = null, previewUrl = null, busy = false;
 let exampleVersion = 0, uploadVersion = 0, currentResult = null, history = [];
 
+class ConnectionError extends Error {}
+
 async function api(path, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 100000);
@@ -12,12 +14,18 @@ async function api(path, options = {}) {
     const response = await fetch(path, {...options, signal: controller.signal});
     let data;
     try { data = await response.json(); }
-    catch { throw new Error('Phiên GPU chưa phản hồi đúng. Kiểm kết nối Colab rồi tải lại web.'); }
-    if (!response.ok) throw new Error(data.detail || `Backend báo lỗi HTTP ${response.status}.`);
+    catch (e) {
+      if (e.name === 'AbortError') throw e;
+      throw new ConnectionError('Phiên GPU chưa phản hồi đúng. Kiểm kết nối Colab rồi bấm Kiểm tra lại.');
+    }
+    if (!response.ok) {
+      const Failure = [401, 403].includes(response.status) ? ConnectionError : Error;
+      throw new Failure(data.detail || `Backend báo lỗi HTTP ${response.status}.`);
+    }
     return data;
   } catch (e) {
     if (e.name === 'AbortError') throw new Error('Quá thời gian chờ. GPU có thể vẫn đang xử lý; không gửi liên tục.');
-    if (e instanceof TypeError) throw new Error('Mất kết nối backend. Kiểm phiên GPU rồi thử lại.');
+    if (e instanceof TypeError) throw new ConnectionError('Mất kết nối backend. Kiểm phiên GPU rồi bấm Kiểm tra lại.');
     throw e;
   } finally { clearTimeout(timer); }
 }
@@ -25,6 +33,17 @@ async function api(path, options = {}) {
 function error(message) {
   el('error').textContent = message;
   el('error').hidden = !message;
+}
+
+function showDisconnected(message) {
+  mode = null;
+  el('mode').textContent = 'Chưa kết nối';
+  el('connection').dataset.state = 'error';
+  el('connection-note').hidden = false;
+  el('notice').textContent = 'Chưa nhận được phản hồi từ backend.';
+  el('reconnect').hidden = false;
+  error(message);
+  updateAskState();
 }
 
 function updateAskState() {
@@ -38,7 +57,7 @@ function updateAskState() {
   el('character-count').textContent = `${el('question').value.length} / 500`;
   el('ask-label').textContent = busy ? 'Đang xử lý…' : 'Gửi câu hỏi';
   el('question-hint').textContent = mode === 'replay' ? 'Ví dụ đã lưu · không gửi câu hỏi mới'
-    : ready ? 'Ctrl + Enter để gửi' : 'Chọn ảnh để bắt đầu';
+    : mode !== 'live' ? 'Kết nối lại để tiếp tục' : ready ? 'Ctrl + Enter để gửi' : 'Chọn ảnh để bắt đầu';
   suggestionIds.forEach(id => { el(id).disabled = busy || mode !== 'live'; });
   el('copy-result').disabled = busy || !currentResult;
   el('result-panel').setAttribute('aria-busy', String(busy));
@@ -200,7 +219,8 @@ async function askQuestion() {
     history.unshift({question, result});
     history = history.slice(0, 6);
   } catch (e) {
-    error(e.message);
+    if (e instanceof ConnectionError) showDisconnected(e.message);
+    else error(e.message);
     el('latency').textContent = 'Chưa có kết quả';
     el('result-empty').hidden = false;
   } finally {
@@ -282,6 +302,7 @@ async function init() {
     const info = await api('api/info');
     if (!['live', 'replay'].includes(info.mode)) throw new Error('Backend trả chế độ không hợp lệ.');
     mode = info.mode;
+    error('');
     el('mode').textContent = mode === 'replay' ? 'Xem lại · không GPU' : 'GPU đã kết nối';
     el('connection').dataset.state = mode === 'live' ? 'ready' : 'replay';
     el('notice').textContent = info.message;
@@ -313,14 +334,7 @@ async function init() {
     }
     updateAskState();
   } catch (e) {
-    mode = null;
-    el('mode').textContent = 'Chưa kết nối';
-    el('connection').dataset.state = 'error';
-    el('connection-note').hidden = false;
-    el('notice').textContent = 'Chưa nhận được phản hồi từ backend.';
-    el('reconnect').hidden = false;
-    error(e.message);
-    updateAskState();
+    showDisconnected(e.message);
   }
 }
 

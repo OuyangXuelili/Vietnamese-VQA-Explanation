@@ -90,6 +90,34 @@ Test cũ đã được xem khi đặt giả thuyết này. Muốn kết luận x
 phiên bản nâng cấp, cần khóa thêm holdout trước khi xem output mới.
 Không dùng test cũ để chọn lambda, seed hoặc checkpoint.
 
+## Kết quả validation
+
+Ngày 7/11/2026, mỗi mô hình được chấm trên cùng 1.407 câu thuộc 1.383 ảnh.
+M3 và M4 dùng seed 42. Các chỉ số trong bảng đã nhân 100.
+
+| Nhánh | EM | Token F1 | ROUGE-L | BERTScore |
+|---|---:|---:|---:|---:|
+| M1 | 70,93 | 75,11 | 44,29 | 82,47 |
+| M3 | 69,51 | 73,92 | 36,45 | 79,74 |
+| M4 | 69,44 | 74,40 | 37,90 | 80,27 |
+
+So với M3, M4 tăng 0,53 điểm BERTScore với CI 95% [+0,37 đến +0,69].
+EM giảm 0,07 điểm phần trăm với CI 95% [−1,85 đến +1,63].
+So với M1, M4 giảm 1,49 điểm EM [−2,91 đến −0,21] và 2,20 điểm
+BERTScore [−2,47 đến −1,95]. Các khoảng dùng 2.000 lượt bootstrap
+cặp theo ảnh, seed 42. Kết quả hiện chỉ áp dụng cho một seed huấn luyện
+và các thước đo văn bản trên validation.
+
+Prediction, bảng điểm và báo cáo so sánh lưu tại
+`artifacts/answer_preservation_20261105/validation_execution/validation_20261107/`.
+Bản tải về đã kiểm hash 1.383 ảnh và tính lại hai so sánh ở local.
+
+Bản tự rà trên 30 ảnh validation đã khóa từ tháng 10 có 11/30 lời giải
+thích M1, 14/30 M3 và 10/30 M4 đạt mức hỗ trợ rõ 2/2. Các số đếm mô tả
+riêng mẫu này. Năm ảnh có mức hỗ trợ M4 thấp hơn M3 được đánh dấu để
+đọc lại, gồm gọi sai bối cảnh, thêm chi tiết chưa rõ và lý do còn chung.
+[Kết quả theo từng ảnh](../artifacts/output_review/m4_validation_30_20261107/index.html).
+
 ## Chẩn đoán NaN và profile suy luận
 
 | Profile | Precision | Double quantization | Vai trò |

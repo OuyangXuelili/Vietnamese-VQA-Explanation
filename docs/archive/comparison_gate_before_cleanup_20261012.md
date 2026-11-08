@@ -50,8 +50,8 @@ log 1.180; payload checkpoint-1100 đã kiểm trên CPU, đủ để qua bướ
 resume. Tab hiện tại có T4 và đã mount Drive; trạng thái thực thi ở TIEN_DO.
 Quyết định một epoch phía trên thay thế đích dừng và các mốc đánh giá của
 ngân sách cũ, nhưng giữ nguyên source, dữ liệu và kiểm tra resume.
-Quy tắc M1 lịch sử ở [sft_full.md](sft_full.md); công việc hiện tại ở
-[kế hoạch](research_plan.md).
+Quy tắc M1 lịch sử ở [sft_full.md](../sft_full.md); công việc hiện tại ở
+[kế hoạch](../research_plan.md).
 Không chọn checkpoint mới nhất một cách tự động hoặc dùng test để chọn.
 
 Loss 600/700/800/900/1.000: 1,121677 / 1,115386 / 1,106721 / 1,098756 /

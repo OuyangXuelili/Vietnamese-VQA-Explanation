@@ -1,13 +1,13 @@
 # Local và cloud dùng chung một codebase
 
-Thứ tự thực thi hiện hành nằm trong [kế hoạch](research_plan.md).
+Thứ tự thực thi hiện hành nằm trong [kế hoạch](../research_plan.md).
 Không chạy lại các notebook lịch sử bên dưới để chuẩn bị M1.
 
-Phần thiết lập M2/M3 mới ở [hướng dẫn preference training](preference_training.md).
+Phần thiết lập M2/M3 mới ở [hướng dẫn preference training](../preference_training.md).
 Môi trường local chỉ bổ sung Accelerate/PEFT để kiểm trainer nhỏ trên CPU;
 không cài CUDA, bitsandbytes hoặc tải backbone về máy này.
 
-> Phần "Kết quả review 22/09/2026" bên dưới là mốc lịch sử, không phải trạng thái hiện tại của trainer hoặc dữ liệu. Xem [TIEN_DO.md](../TIEN_DO.md) để biết kết quả kiểm thử và các việc còn mở mới nhất.
+> Phần "Kết quả review 22/09/2026" bên dưới là mốc lịch sử, không phải trạng thái hiện tại của trainer hoặc dữ liệu. Xem `TIEN_DO.md` (nhật ký local, không nằm trong Git) để biết kết quả kiểm thử và các việc còn mở mới nhất.
 
 ## Kết quả review 22/09/2026
 

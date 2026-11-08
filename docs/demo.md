@@ -92,10 +92,15 @@ Web nghe trên loopback của runtime. Notebook lấy đúng HTTPS origin từ
 origin. Chỉ origin của phiên và hai trang cha Colab xác định được phép;
 các bảo vệ mặc định của web local không thay đổi.
 
-Trên giao diện: chọn JPEG/PNG tối đa 6 MB, nhập câu hỏi rồi bấm Hỏi về ảnh.
+Trên giao diện: chọn JPEG/PNG tối đa 6 MB, nhập câu hỏi rồi bấm Gửi câu hỏi.
 Đổi ảnh/câu hỏi sẽ xóa kết quả cũ. Ảnh chỉ dùng tạm trong lượt suy luận,
 không ghi vào dataset hoặc nhật ký. Mất phiên hoặc phản hồi không phải
 JSON được báo rõ; timeout trình duyệt không cưỡng bức dừng model.
+
+Khi mất kết nối hoặc hết phiên proxy, web hiện **Chưa kết nối** và nút
+**Kiểm tra lại**. Sau khi khôi phục phiên Colab, bấm nút này để tiếp tục
+với ảnh và câu hỏi đang có. Lỗi suy luận 503 vẫn hiện riêng; timeout khi
+đọc phản hồi giữ thông báo quá thời gian chờ.
 
 `demo_runs/<WEB_RUN>/` giữ `server.log` và `receipt.json` về nguồn, model,
 hash adapter và trạng thái khởi động. Không lưu URL proxy hoặc ảnh tải lên.
@@ -126,9 +131,32 @@ kết nối lại; gửi bằng Ctrl+Enter trả cùng output tên lửa trong 2
 Đây là kiểm chức năng trên ba ví dụ được chọn trước suy luận, không phải
 benchmark độ chính xác hoặc bằng chứng ảnh chưa có trong pretraining.
 Giải thích ca thìa còn lặp đáp án, ca tên lửa mô tả hình dạng thô; giữ nguyên
-output. Chấm theo ảnh và bảng test cuối vẫn còn lại. Notebook có output,
+output. Tại mốc 27/10, chấm theo ảnh và bảng test cuối còn lại. Notebook có output,
 ảnh desktop/mobile và metadata ở `artifacts/demo_acceptance_20261027/`;
 nguồn ảnh: [scikit-image](https://scikit-image.org/docs/stable/api/skimage.data).
+
+## Nghiệm thu phục hồi ngày 7/11/2026
+
+Bản web M1-3683 đã chạy lại trên T4 với ba ảnh validation chọn trước suy
+luận. Revision và hash adapter khớp hồ sơ M1; giữ nguyên output gốc.
+
+| Ca | Đáp án | Thời gian |
+|---|---|---:|
+| Con vật trong ảnh | bò | 7,09 giây |
+| Hoạt động trong ảnh | lướt sóng | 3,74 giây |
+| Câu hỏi có/không | không | 3,81 giây |
+
+Khi ngắt mạng riêng tab rồi kết nối lại, ảnh và câu hỏi vẫn được giữ; lần
+gửi tiếp trả cùng output trong 3,31 giây. Sau khi dừng backend và nạp lại
+M1, gửi tiếp trả cùng output trong 5,45 giây. Bộ chọn tệp trong iframe
+không nhận điều khiển; tab proxy riêng của cùng runtime hoạt động.
+
+Source `source_20261107_142151_785687` và gói `demo_acceptance_20261107.zip`
+đã được upload rồi tải lại kiểm SHA-256 ngày 7/11.
+[Gói minh chứng trên Drive](https://drive.google.com/drive/u/6/folders/1bV6z-WuyRiHjWYC7d3kI7W-A9-49c6GL).
+Đây là kiểm chức năng trên ba ca, không phải benchmark độ chính xác. Bảng
+test tự động đã hoàn tất; chấm độc lập theo ảnh vẫn còn lại. Lần xác minh
+Drive này không chứng minh trạng thái runtime hoặc file remote hiện tại.
 
 ## Kiểm nghiệm thu cuối
 

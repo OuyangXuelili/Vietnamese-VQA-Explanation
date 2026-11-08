@@ -2,7 +2,7 @@
 
 Cập nhật 30/09/2026. **Đây là bản kế hoạch chính để thực hiện từ lúc này.**
 Đọc từ P0 đến P5; không chạy lại notebook 00–08 theo thứ tự. Tiến độ thực tế
-và đường dẫn run nằm trong [TIEN_DO.md](../TIEN_DO.md). Các kế hoạch trước được
+và đường dẫn run nằm trong `TIEN_DO.md` (nhật ký local, không nằm trong Git). Các kế hoạch trước được
 thu gọn ở cuối tài liệu, không dùng làm danh sách việc hiện hành.
 
 ## 1. Mục tiêu, phạm vi và tiêu chí hoàn thành
@@ -452,20 +452,20 @@ câu hỏi nghiên cứu/phạm vi với giảng viên; không gọi demo SFT l�
 kế hoạch so sánh preference optimization.
 
 Nguồn đối chiếu và giới hạn so sánh được ghi tại
-[related_repositories.md](related_repositories.md). Các phần ghi ngày
+[related_repositories.md](../related_repositories.md). Các phần ghi ngày
 19–24/09 bên dưới được giữ làm lịch sử; giao thức hiện hành là mục này cùng
 `experiment_protocol.md`.
 
 ---
 
 Cập nhật kế hoạch dữ liệu: 24/09/2026. **Trạng thái hiện hành** nằm ở
-[TIEN_DO.md](../TIEN_DO.md); các bảng trạng thái ngày 19/09 phía dưới là
+`TIEN_DO.md` (nhật ký local, không nằm trong Git); các bảng trạng thái ngày 19/09 phía dưới là
 nhật ký lịch sử, không phải trạng thái chạy hiện tại. M0/M1 smoke và paired
 smoke đã hoàn tất; dữ liệu ảnh đầy đủ đã xác minh local và trên Colab,
 audit/preflight full-data đã qua; optimizer pilot M1 20 bước và nạp lại adapter
 đã qua trên T4, nhưng full SFT/DPO chưa chạy. Thời gian pilot khiến khả năng
 chạy đủ một epoch trên Colab free cần được tính lại trước khi bắt đầu. Xem
-[giao thức dữ liệu](data_protocol.md) trước khi mở rộng thực nghiệm.
+[giao thức dữ liệu](../data_protocol.md) trước khi mở rộng thực nghiệm.
 Tài liệu này giữ thiết kế nghiên cứu và các mốc cũ. Kết quả mới, lệnh kiểm tra
 và run tương ứng được ghi ở `TIEN_DO.md`; có code chưa đồng nghĩa đã chạy GPU.
 

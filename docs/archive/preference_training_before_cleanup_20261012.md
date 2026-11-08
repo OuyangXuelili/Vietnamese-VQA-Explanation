@@ -53,7 +53,7 @@ input trainer. Các trang checkpoint-800 cũ giữ nguyên làm lịch sử.
    Nếu chuyển từ `file://` sang localhost, đổi hàng đợi hoặc có hai nháp khác nhau,
    xuất JSONL từ trang cũ rồi nhập vào trang hiện hành. Không xóa nháp cũ.
 4. Chạy `export_preference_review.py`, sau đó `validate_preferences.py`
-   để tạo bundle mới. Lệnh đầy đủ ở [hướng dẫn gán nhãn](preference_annotation.md).
+   để tạo bundle mới. Lệnh đầy đủ ở [hướng dẫn gán nhãn](../preference_annotation.md).
 
 100 ứng viên từ checkpoint-800 chỉ để hiệu chỉnh rubric. Bộ chính sinh từ
 M1 được chọn, giữ pool train-only và version mới; không trộn nguồn mà không ghi.
@@ -76,7 +76,7 @@ Sau khi xuất nhãn, thứ tự công việc là:
 5. M2 và M3 cùng bắt đầu lại từ M1-3683, dùng cùng ID/chosen và học một epoch.
 
 Bước 1–3 chạy local; bước 4–5 dùng GPU. Nháp AI và report `in_progress` chưa
-phải bundle train. Các lệnh export/freeze ở [hướng dẫn gán nhãn](preference_annotation.md);
+phải bundle train. Các lệnh export/freeze ở [hướng dẫn gán nhãn](../preference_annotation.md);
 lệnh trainer và cách truyền gate ở phần dưới.
 
 ## Chốt M1 trước khi train
@@ -232,4 +232,4 @@ trong đường forward DPO. Vì vậy dùng Transformers Trainer và loss chu�
 riêng, giữ lại collator Qwen đã kiểm. Đây là lựa chọn triển khai, không phải thuật toán mới.
 
 Chưa train M2/M3, chưa tạo nhãn người. Trạng thái đồng bộ đọc từ TIEN_DO.
-Công cụ chấm test theo [hướng dẫn](human_evaluation.md); demo còn cần hoàn thiện.
+Công cụ chấm test theo [hướng dẫn](../human_evaluation.md); demo còn cần hoàn thiện.

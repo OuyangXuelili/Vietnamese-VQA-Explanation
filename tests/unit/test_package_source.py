@@ -1,9 +1,11 @@
 import hashlib
 import json
+import sys
 import zipfile
 
 import pytest
 
+from scripts import package_source
 from scripts.package_source import ARCHIVE_ROOT, source_files, verify_source_archive
 from vqa_explanation.utils.run_provenance import source_fingerprints
 
@@ -18,6 +20,32 @@ def _minimum_source(root):
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(name, encoding="utf-8")
+
+
+@pytest.mark.parametrize(("arguments", "exit_code", "message"), [
+    (["--help"], 0, "usage:"),
+    (["-h"], 0, "usage:"),
+    (["--unknown-option"], 2, "unrecognized arguments:"),
+])
+def test_cli_help_and_invalid_arguments_do_not_access_project(
+    tmp_path, monkeypatch, capsys, arguments, exit_code, message,
+):
+    _minimum_source(tmp_path)
+    root_calls = []
+
+    def project_root():
+        root_calls.append(tmp_path)
+        return tmp_path
+
+    monkeypatch.setattr(package_source, "project_root", project_root)
+    monkeypatch.setattr(sys, "argv", ["package_source.py", *arguments])
+    with pytest.raises(SystemExit) as error:
+        package_source.main()
+    assert error.value.code == exit_code
+    output = capsys.readouterr()
+    assert message in output.out + output.err
+    assert root_calls == []
+    assert not (tmp_path / "artifacts").exists()
 
 
 def test_source_files_include_every_provenance_fingerprint_and_yml_config(tmp_path):
@@ -129,11 +157,29 @@ def test_source_notebook_allowlist_excludes_unexpected_smoke_outputs(tmp_path):
     assert path.read_text() == payload
 
 
+def test_m4_validation_notebook_is_in_source_zip(tmp_path, monkeypatch):
+    _minimum_source(tmp_path)
+    relative = "notebooks/10_evaluate_answer_preservation.ipynb"
+    path = tmp_path / relative
+    path.parent.mkdir()
+    payload = json.dumps({"cells": [
+        {"cell_type": "code", "source": ["pass\n"], "outputs": [], "execution_count": None},
+    ]})
+    path.write_text(payload, encoding="utf-8")
+    monkeypatch.setattr(package_source, "project_root", lambda: tmp_path)
+    package_source.main([])
+    [archive_path] = (tmp_path / "artifacts/releases").glob("*/*.zip")
+    with zipfile.ZipFile(archive_path) as archive:
+        assert archive.read(ARCHIVE_ROOT + relative) == payload.encode("utf-8")
+
+
+@pytest.mark.parametrize("relative", ["notebooks/05_evaluate_preferences.ipynb",
+                                      "notebooks/10_evaluate_answer_preservation.ipynb"])
 @pytest.mark.parametrize("evidence", [{"outputs": [{"text": "history"}]},
                                      {"execution_count": 1}])
-def test_active_template_with_execution_evidence_cannot_be_packaged(tmp_path, evidence):
+def test_active_template_with_execution_evidence_cannot_be_packaged(tmp_path, evidence, relative):
     _minimum_source(tmp_path)
-    path = tmp_path / "notebooks/05_evaluate_preferences.ipynb"
+    path = tmp_path / relative
     path.parent.mkdir()
     payload = json.dumps({"cells": [{"cell_type": "code", **evidence}]})
     path.write_text(payload)
